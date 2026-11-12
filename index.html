@@ -5,14 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>現場利益管理</title>
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
-:root{--navy:#14284b;--blue:#1f5fbf;--bg:#f3f5f9;--line:#dde3ec;--g:#1a8a4a;--y:#b07800;--r:#c62828;--mut:#6b7686}
+:root{--navy:#1b2466;--blue:#0b67b2;--bg:#f3f5f9;--line:#dde3ec;--g:#1a8a4a;--y:#b07800;--r:#c62828;--mut:#6b7686}
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;background:var(--bg);color:#1c2430;font-size:15px;line-height:1.5}
 a{color:var(--blue);cursor:pointer}
-header{background:var(--navy);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5;height:48px}
+header{background:#fff;color:var(--navy);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5;height:48px}
 .logo{font-weight:800;letter-spacing:.12em;font-size:17px}
-.hbtn{background:none;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:8px;padding:3px 9px;font-size:15px}
+.hbtn{background:none;border:1px solid var(--line);color:var(--navy);border-radius:8px;padding:3px 9px;font-size:15px}
 nav{display:flex;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:48px;z-index:4}
 nav button{flex:none;border:0;background:none;padding:11px 13px;font-size:14px;color:var(--mut);border-bottom:3px solid transparent;font-family:inherit}
 nav button.on{color:var(--blue);border-color:var(--blue);font-weight:700}
@@ -58,7 +60,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 5px;b
 .stabs button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
 .warn{background:#fff6e5;border-color:#f1c26b;cursor:pointer;font-weight:700}
 .login{max-width:420px;margin:0 auto;padding:40px 18px}
-.login .logo{color:var(--navy);font-size:34px;text-align:center}
+.login .logo{text-align:center;margin:10px 0 6px}.login .logo img{width:min(300px,80%);height:auto}
+header img.lg{height:24px;width:auto;display:block}
 .three{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .three .kpi .v{font-size:17px}
 .subrow{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px;background:#fafbfd}
@@ -156,15 +159,15 @@ async function boot(){
 let LG={role:null};
 function renderLogin(){
   const a=$('app');
-  if(!LG.role){a.innerHTML=`<div class="login"><div class="logo">EXTAGE</div><p class="mut" style="text-align:center">現場利益管理</p><button class="btn big" onclick="LG.role='staff';renderLogin()">社内の方</button><button class="btn sub big" onclick="LG.role='out';renderLogin()">外注・協力業者の方</button></div>`;return}
+  if(!LG.role){a.innerHTML=`<div class="login"><div class="logo"><img src="logo.png" alt="EXTAGE"></div><p class="mut" style="text-align:center">現場利益管理</p><button class="btn big" onclick="LG.role='staff';renderLogin()">社内の方</button><button class="btn sub big" onclick="LG.role='out';renderLogin()">外注・協力業者の方</button></div>`;return}
   if(LG.role==='staff'){
-    a.innerHTML=`<div class="login"><div class="logo">EXTAGE</div><h3 style="text-align:center">社内の方</h3>
+    a.innerHTML=`<div class="login"><div class="logo"><img src="logo.png" alt="EXTAGE"></div><h3 style="text-align:center">社内の方</h3>
     <label>お名前</label><input id="lgName" autocomplete="name">
     ${CFG.staffNames.length?`<div class="chips" style="margin-top:6px">${CFG.staffNames.map(x=>`<button class="chip" onclick="$('lgName').value=${q(x)}">${esc(x)}</button>`).join('')}</div>`:''}
     <label>パスワード</label><input id="lgPw" type="password" inputmode="numeric" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn big" onclick="doLogin()">入る</button><p style="text-align:center"><a onclick="LG.role=null;renderLogin()">← 戻る</a></p></div>`;
   }else{
-    a.innerHTML=`<div class="login"><div class="logo">EXTAGE</div><h3 style="text-align:center">外注・協力業者の方</h3>
+    a.innerHTML=`<div class="login"><div class="logo"><img src="logo.png" alt="EXTAGE"></div><h3 style="text-align:center">外注・協力業者の方</h3>
     <label>会社名・お名前</label><input id="lgName" onkeydown="if(event.key==='Enter')doLogin()">
     <p class="mut">この端末は、作業日報と請求書を送る画面だけになります。</p>
     <button class="btn big" onclick="doLogin()">入る</button><p style="text-align:center"><a onclick="LG.role=null;renderLogin()">← 戻る</a></p></div>`;
@@ -222,7 +225,7 @@ function render(){
   const tabs=[['home','現場'],['person','担当・お客様'],['docs','書類'],['pay','入金・支払'],['work','外注日報'],['admin','管理']];
   const ni=newInv();
   const body=V.site?viewSite():({home:viewHome,person:viewPerson,docs:viewDocs,pay:viewPay,work:viewWork,admin:viewAdmin})[V.tab]();
-  $('app').innerHTML=`<header><span class="logo">EXTAGE</span><span style="flex:1;font-size:13px;opacity:.85">現場利益管理</span><span style="font-size:13px">${esc(SES.name)}</span><button class="hbtn" onclick="refresh()" title="最新にする">↻</button></header>
+  $('app').innerHTML=`<header><img class="lg" src="logo.png" alt="EXTAGE"><span style="flex:1;font-size:13px;color:var(--mut)">現場利益管理</span><span style="font-size:13px">${esc(SES.name)}</span><button class="hbtn" onclick="refresh()" title="最新にする">↻</button></header>
   <nav>${tabs.map(([k,l])=>`<button class="${V.tab===k&&!V.site?'on':''}" onclick="go('${k}')">${l}${k==='pay'&&ni?`<span class="badge">${ni}</span>`:''}</button>`).join('')}</nav><main>${body}</main>`;
 }
 function go(t){V.tab=t;V.site=null;V.person=null;V.client=null;V.from=null;render();scrollTo(0,0)}
@@ -849,7 +852,7 @@ function renderOut(){
      <div class="mut">請求日 ${sd(v.date)}${v.date?`・${Number(v.date.slice(5,7))}月末締め → ${jd(payDate(v.date))} お支払い予定`:''}</div>
      ${v.status==='新着'?`<button class="btn dan sm" style="margin-top:6px" onclick="oiWithdraw(${q(v.id)})">取り下げる</button>`:''}</div>`).join(''):'<div class="card mut">まだありません。</div>'}`;
   }
-  $('app').innerHTML=`<header><span class="logo">EXTAGE</span><span style="flex:1;font-size:13px;opacity:.85">作業日報・請求書</span><span style="font-size:13px">${esc(SES.name)}</span></header>
+  $('app').innerHTML=`<header><img class="lg" src="logo.png" alt="EXTAGE"><span style="flex:1;font-size:13px;color:var(--mut)">作業日報・請求書</span><span style="font-size:13px">${esc(SES.name)}</span></header>
   <nav><button class="${OV.tab==='log'?'on':''}" onclick="OV.tab='log';renderOut()">作業日報</button><button class="${OV.tab==='inv'?'on':''}" onclick="OV.tab='inv';renderOut()">請求書</button></nav>
   <main>${body}<div class="foot"><a class="mut" onclick="unlockDevice()">この端末の外注設定を解除</a></div></main>`;
   if(OV.tab==='log'){owExpRender();owH()}
