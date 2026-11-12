@@ -814,6 +814,11 @@ function viewAdmin(){
   <label>社内パスワード</label><input id="adP" inputmode="numeric" value="${esc(FULLCFG.staffPassword)}">
   <p class="mut">パスワードを変えると、ほかの社員の端末は次に開いたときにもう一度入り直しになります。</p>
   <button class="btn big" onclick="saveCfg()">設定を保存</button></div>
+  <div class="card"><h3>PDF読み取り（AI）</h3>
+  <p>${FULLCFG.hasApiKey?'<span class="tag ok">設定済み</span> 見積書・請求書の金額を自動で読み取ります':'<span class="tag new">未設定</span> 金額は手で入力してください'}</p>
+  <label>APIキー（sk-ant-…）${FULLCFG.hasApiKey?'を入れ替える':''}</label><input id="adK" type="password" autocomplete="off" placeholder="sk-ant-…">
+  <p class="mut">保存するとき、キーが使えるか自動で確かめます。保存したキーは画面には二度と表示されません。</p>
+  <div class="row"><button class="btn" onclick="saveKey()">キーを保存</button>${FULLCFG.hasApiKey?'<button class="btn sub" onclick="testKey()">動作確認</button>':''}</div></div>
   <div class="card"><h3>社内の方</h3><div class="chips">${CFG.staffNames.map(x=>`<span class="chip">${esc(x)} <a onclick="rmStaff(${q(x)})">×</a></span>`).join('')||'<span class="mut">なし</span>'}</div>
   <h3 style="margin-top:12px">外注・協力業者の方</h3><div class="chips">${outs.map(x=>`<span class="chip">${esc(x)}</span>`).join('')||'<span class="mut">まだいません</span>'}</div></div>
   <div class="card"><h3>アクセス履歴</h3><div class="tw"><table><tr><th>日時</th><th>名前</th><th>区分</th></tr>${log.map(l=>`<tr><td>${esc(l.at)}</td><td>${esc(l.name)}</td><td>${esc(l.role)}</td></tr>`).join('')}</table></div></div>
@@ -824,6 +829,13 @@ async function saveCfg(){
   if(!c.staffPassword)return toast('パスワードを入れてください');
   try{await api('saveConfig',{config:c});SES.pw=c.staffPassword;localStorage.setItem(KEY,JSON.stringify(SES));await reload();render();toast('設定を保存しました')}catch(e){toast(e.message)}
 }
+async function saveKey(){
+  const key=$('adK').value.replace(/\s+/g,'').trim();
+  const m=key.match(/sk-ant-[A-Za-z0-9_\-]+/);if(!m)return toast('sk-ant- で始まるキーを貼り付けてください');
+  toast('キーを確かめています…',30000);
+  try{await api('setApiKey',{key:m[0]});$('adK').value='';await reload();render();toast('✓ キーを保存しました。PDF読み取りが使えます',4000)}catch(e){toast(e.message,6000)}
+}
+async function testKey(){toast('確かめています…',30000);try{const j=await api('testApiKey');toast(j.ok?'✓ 正常に使えます':'使えません：'+(j.msg||''),5000)}catch(e){toast(e.message)}}
 function rmStaff(x){confirmBox(x+' さんを名前の一覧から外しますか？',async()=>{try{await api('saveConfig',{config:{staffNames:CFG.staffNames.filter(y=>y!==x).join('、')}});await reload();render()}catch(e){toast(e.message)}},'外す')}
 
 /* ---------- 外注・協力業者の画面 ---------- */

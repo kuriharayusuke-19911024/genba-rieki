@@ -218,6 +218,7 @@ function route_(b) {
     const o = {};
     COLLS.forEach(function (n) { o[n] = all_(n); });
     o.accesslog = o.accesslog.slice(-300);
+    c.hasApiKey = !!PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
     return { data: o, config: c };
   }
   if (a === 'save') return { rec: withLock_(function () { return save_(b.coll, b.rec); }) };
@@ -240,6 +241,19 @@ function route_(b) {
     const f = DriveApp.getFileById(b.fileId);
     const blob = f.getBlob();
     return { b64: Utilities.base64Encode(blob.getBytes()), mime: blob.getContentType(), name: f.getName() };
+  }
+  if (a === 'setApiKey') {
+    const k = String(b.key || '').trim();
+    if (!/^sk-ant-/.test(k)) return { error: 'キーは sk-ant- で始まる文字です' };
+    const test = testKey_(k);
+    if (!test.ok) return { error: 'このキーは使えませんでした（' + test.msg + '）' };
+    PropertiesService.getScriptProperties().setProperty('ANTHROPIC_API_KEY', k);
+    return { ok: true };
+  }
+  if (a === 'testApiKey') {
+    const k = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
+    if (!k) return { ok: false, msg: '未設定' };
+    return testKey_(k);
   }
   if (a === 'saveConfig') {
     withLock_(function () { setCfg_(b.config || {}); });
@@ -293,4 +307,20 @@ function readDoc_(b64, mime) {
   if (p.subtotal == null && p.total != null && p.tax != null) p.subtotal = p.total - p.tax;
   if (p.total == null && p.subtotal != null && p.tax != null) p.total = p.subtotal + p.tax;
   return p;
+}
+
+/* キーが使えるか、ごく短い呼び出しで確かめる */
+function testKey_(k) {
+  try {
+    const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post', contentType: 'application/json',
+      headers: { 'x-api-key': k, 'anthropic-version': '2023-06-01' },
+      payload: JSON.stringify({ model: cfg_().aiModel || DEFAULTS.aiModel, max_tokens: 5, messages: [{ role: 'user', content: 'OK' }] }),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() === 200) return { ok: true };
+    let msg = String(res.getResponseCode());
+    try { const j = JSON.parse(res.getContentText()); if (j.error && j.error.message) msg = j.error.message; } catch (e) { }
+    return { ok: false, msg: msg };
+  } catch (e) { return { ok: false, msg: String((e && e.message) || e) }; }
 }
