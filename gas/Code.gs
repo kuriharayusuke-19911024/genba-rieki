@@ -285,6 +285,7 @@ function route_(b) {
   if (a === 'agentToken') {
     const pr = PropertiesService.getScriptProperties();
     let tk = pr.getProperty('AGENT_TOKEN');
+    if (b.set && /^[A-Za-z0-9]{32,64}$/.test(String(b.set))) { tk = String(b.set); pr.setProperty('AGENT_TOKEN', tk); return { ok: true }; }
     if (!tk || b.renew) { tk = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8); pr.setProperty('AGENT_TOKEN', tk); }
     return { token: tk };
   }
