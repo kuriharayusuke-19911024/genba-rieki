@@ -3,7 +3,7 @@
  * スプレッドシートに紐づけて使う。ウェブアプリとして「全員」に公開。
  * お金の数字は社内パスワードを確認したときだけ返す。外注さんには現場名と自分の記録だけ返す。
  */
-const COLLS = ['sites', 'budget', 'estimates', 'bills', 'cinvoices', 'reports', 'worklogs', 'invoices', 'templates', 'accesslog'];
+const COLLS = ['sites', 'budget', 'estimates', 'bills', 'cinvoices', 'reports', 'worklogs', 'invoices', 'templates', 'requests', 'accesslog'];
 const DEFAULTS = {
   staffPassword: '1228',
   targetMargin: '22',
@@ -11,7 +11,15 @@ const DEFAULTS = {
   managers: '牛尾和寛、牛尾翔汰',
   staffNames: '',
   companyName: '株式会社エクステージ',
-  aiModel: 'claude-haiku-5-5'
+  aiModel: 'claude-haiku-5-5',
+  categories: '新築、リフォーム、小規模修繕、その他',
+  estStages: '概算見積（融資用）、見積、契約実施見積、請負契約書、その他',
+  cinvTypes: '着手金、中間金、完成金（残金）、一括、追加工事、その他',
+  expenseItems: '交通費、ガソリン代、駐車場代、高速代、材料費',
+  payMonths: '2',
+  payDay: '10',
+  dueMonths: '1',
+  warnPt: '5'
 };
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -142,9 +150,28 @@ function route_(b) {
   const pwOk = String(b.pw || '') === String(c.staffPassword);
 
   if (a === 'publicConfig') {
-    return { config: { staffNames: split_(c.staffNames), managers: split_(c.managers), targetMargin: num_(c.targetMargin), fiscalEndMonth: num_(c.fiscalEndMonth), companyName: c.companyName } };
+    return { config: { staffNames: split_(c.staffNames), managers: split_(c.managers), targetMargin: num_(c.targetMargin), fiscalEndMonth: num_(c.fiscalEndMonth), companyName: c.companyName, expenseItems: split_(c.expenseItems), payMonths: num_(c.payMonths), payDay: num_(c.payDay) } };
   }
   if (a === 'checkPw') return { ok: pwOk };
+
+  /* 改善リクエストを自動対応するClaude用（リクエストの読み書きだけ） */
+  if (a === 'agentList' || a === 'agentUpdate') {
+    const tk = PropertiesService.getScriptProperties().getProperty('AGENT_TOKEN');
+    if (!tk || String(b.token || '') !== tk) return { error: '権限がありません' };
+    if (a === 'agentList') {
+      return { requests: all_('requests').filter(function (r) { return r.status !== '対応済' && r.status !== '見送り'; }) };
+    }
+    return {
+      rec: withLock_(function () {
+        const r = find_('requests', b.id);
+        if (!r) throw new Error('リクエストが見つかりません');
+        if (b.status) r.status = String(b.status);
+        if (b.reply != null) { r.replies = r.replies || []; r.replies.push({ by: 'Claude', at: now_(), text: String(b.reply) }); }
+        r.updatedAt = now_();
+        return save_('requests', r);
+      })
+    };
+  }
   if (a === 'login') {
     const nm = String(b.name || '').trim();
     if (!nm) return { error: '名前を入力してください' };
@@ -254,6 +281,12 @@ function route_(b) {
     const k = PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY');
     if (!k) return { ok: false, msg: '未設定' };
     return testKey_(k);
+  }
+  if (a === 'agentToken') {
+    const pr = PropertiesService.getScriptProperties();
+    let tk = pr.getProperty('AGENT_TOKEN');
+    if (!tk || b.renew) { tk = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8); pr.setProperty('AGENT_TOKEN', tk); }
+    return { token: tk };
   }
   if (a === 'saveConfig') {
     withLock_(function () { setCfg_(b.config || {}); });

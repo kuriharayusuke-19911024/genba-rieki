@@ -77,12 +77,12 @@ header img.lg{height:24px;width:auto;display:block}
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycby1JvWqGiBHQvb6RxnSLNeh8xGOIJjYgv9U_YymXSakcDh4Q3OK0j9ACsmu8Do5Hgz7Jg/exec';
 const KEY='extage_genba_session_v1';
-const CATS=['新築','リフォーム','小規模修繕','その他'];
-const STAGES=['概算見積（融資用）','見積','契約実施見積','請負契約書','その他'];
+let CATS=['新築','リフォーム','小規模修繕','その他'];
+let STAGES=['概算見積（融資用）','見積','契約実施見積','請負契約書','その他'];
 let SES=null;try{SES=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
-let CFG={staffNames:[],managers:[],targetMargin:22,fiscalEndMonth:12};
+let CFG={staffNames:[],managers:[],targetMargin:22,fiscalEndMonth:12,expenseItems:['交通費','ガソリン代'],payMonths:2,payDay:10,dueMonths:1,warnPt:5};
 let FULLCFG={};
-let D={sites:[],budget:[],estimates:[],bills:[],cinvoices:[],reports:[],worklogs:[],invoices:[],templates:[],accesslog:[]};
+let D={sites:[],budget:[],estimates:[],bills:[],cinvoices:[],requests:[],reports:[],worklogs:[],invoices:[],templates:[],accesslog:[]};
 let V={tab:'home',site:null,stab:'gai',person:null,prole:'all',from:null,pmode:'staff',client:null};
 let F={period:'cur',cat:'all',done:false};
 let DF={type:'all',site:'all',q:''};
@@ -106,7 +106,8 @@ const today=()=>ymd(new Date());
 const WD='日月火水木金土';
 function jd(s){if(!s)return'';const [y,m,d]=s.split('-').map(Number);if(!d)return s;const dt=new Date(y,m-1,d);return `${y}年${m}月${d}日（${WD[dt.getDay()]}）`}
 function sd(s){if(!s)return'—';const [y,m,d]=s.split('-').map(Number);return d?`${y}/${m}/${d}`:s}
-function payDate(s){if(!s)return'';const [y,m]=s.split('-').map(Number);if(!m)return'';return ymd(new Date(y,m-1+2,10))}
+function payDate(s){if(!s)return'';const [y,m]=s.split('-').map(Number);if(!m)return'';const pm=n(CFG.payMonths),pd=n(CFG.payDay)||10;const last=new Date(y,m-1+pm+1,0).getDate();return ymd(new Date(y,m-1+pm,Math.min(pd,last)))}
+function payRule(){const pm=n(CFG.payMonths);return `末締め${pm===0?'当月':pm===1?'翌月':pm===2?'翌々月':pm+'か月後'}${n(CFG.payDay)>=28?'末':n(CFG.payDay)+'日'}払い`}
 function tax(amount,incl){return n(incl)||Math.round(n(amount)*1.1)}
 function toast(t,ms=2600){const e=$('toast');e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>e.hidden=true,ms)}
 function modal(html){const m=$('modal');m.innerHTML='<div class="box">'+html+'</div>';m.hidden=false}
@@ -189,6 +190,9 @@ async function reload(){
   const j=await api('all');D=j.data;FULLCFG=j.config;
   CFG.targetMargin=n(j.config.targetMargin);CFG.fiscalEndMonth=n(j.config.fiscalEndMonth)||12;
   CFG.managers=split(j.config.managers);CFG.staffNames=split(j.config.staffNames);
+  const L=(k,d)=>{const v=split(j.config[k]);return v.length?v:d};
+  CATS=L('categories',CATS);STAGES=L('estStages',STAGES);CTYPES=L('cinvTypes',CTYPES);CFG.expenseItems=L('expenseItems',CFG.expenseItems);
+  CFG.payMonths=j.config.payMonths===''||j.config.payMonths==null?2:n(j.config.payMonths);CFG.payDay=n(j.config.payDay)||10;CFG.dueMonths=j.config.dueMonths===''||j.config.dueMonths==null?1:n(j.config.dueMonths);CFG.warnPt=n(j.config.warnPt)||5;
 }
 async function refresh(){try{await reload();render();toast('最新の状態にしました')}catch(e){toast(e.message)}}
 function fy(p){const E=CFG.fiscalEndMonth||12;const now=new Date();let ey=(now.getMonth()+1<=E)?now.getFullYear():now.getFullYear()+1;if(p==='prev')ey--;if(p==='next')ey++;const s=new Date(ey-1,E,1),e=new Date(ey,E,0);return{s:ymd(s),e:ymd(e),label:`${ey}年${E}月期（${s.getFullYear()}/${s.getMonth()+1}〜${e.getFullYear()}/${e.getMonth()+1}）`}}
@@ -216,7 +220,7 @@ function agg(sites){
   sites.forEach(s=>{const m=M(s);sales+=m.sales;cost+=m.cost;if(m.budget>0){budget+=m.budget;planSales+=m.sales}if(m.target!=null){tw+=m.target*m.sales;tws+=m.sales}});
   return{sales,cost,budget,gross:sales-cost,act:sales>0?(sales-cost)/sales:null,plan:planSales>0?(planSales-budget)/planSales:null,target:tws>0?tw/tws:null,n:sites.length}
 }
-function col(v,t){if(v==null)return'mut';const tt=t!=null?t:T();return v>=tt?'g':(v>=tt-0.05?'y':'r')}
+function col(v,t){if(v==null)return'mut';const tt=t!=null?t:T();return v>=tt?'g':(v>=tt-n(CFG.warnPt)/100?'y':'r')}
 const siteName=id=>(D.sites.find(s=>s.id===id)||{}).name||'（現場未選択）';
 const newInv=()=>D.invoices.filter(v=>v.status==='新着').length;
 
@@ -225,7 +229,7 @@ function render(){
   const tabs=[['home','現場'],['person','担当・お客様'],['docs','書類'],['pay','入金・支払'],['work','外注日報'],['admin','管理']];
   const ni=newInv();
   const body=V.site?viewSite():({home:viewHome,person:viewPerson,docs:viewDocs,pay:viewPay,work:viewWork,admin:viewAdmin})[V.tab]();
-  $('app').innerHTML=`<header><img class="lg" src="logo.png" alt="EXTAGE"><span style="flex:1;font-size:13px;color:var(--mut)">現場利益管理</span><span style="font-size:13px">${esc(SES.name)}</span><button class="hbtn" onclick="refresh()" title="最新にする">↻</button></header>
+  $('app').innerHTML=`<header><img class="lg" src="logo.png" alt="EXTAGE"><span style="flex:1;font-size:13px;color:var(--mut)">現場利益管理</span><span style="font-size:13px">${esc(SES.name)}</span><button class="hbtn" onclick="reqModal()" title="改善リクエスト">💬${reqBadge()}</button><button class="hbtn" onclick="refresh()" title="最新にする">↻</button></header>
   <nav>${tabs.map(([k,l])=>`<button class="${V.tab===k&&!V.site?'on':''}" onclick="go('${k}')">${l}${k==='pay'&&ni?`<span class="badge">${ni}</span>`:''}</button>`).join('')}</nav><main>${body}</main>`;
 }
 function go(t){V.tab=t;V.site=null;V.person=null;V.client=null;V.from=null;render();scrollTo(0,0)}
@@ -291,7 +295,7 @@ function payLine(s,m){
 }
 
 /* ---------- お客様への請求・入金 ---------- */
-function endNextMonth(d){if(!d)return'';const[y,m]=d.split('-').map(Number);return ymd(new Date(y,m+1,0))}
+function endNextMonth(d){if(!d)return'';const[y,m]=d.split('-').map(Number);return ymd(new Date(y,m+n(CFG.dueMonths),0))}
 const dueOf=c=>c.due||endNextMonth(c.date);
 function P(s,m){
   m=m||M(s);
@@ -335,17 +339,17 @@ function siteCinv(s,m){
    ${c.memo?`<div class="mut">${esc(c.memo)}</div>`:''}
    <div class="row" style="margin-top:6px">${fbtn(c.file,'📄 請求書')}<button class="btn dan sm" onclick="confirmBox('この請求を削除しますか？',()=>removeRec('cinvoices',${q(c.id)}))">削除</button></div></div></div></div>`}).join(''):'<div class="card mut">まだ請求がありません。</div>'}`;
 }
-const CTYPES=['着手金','中間金','完成金（残金）','一括','追加工事','その他'];
+let CTYPES=['着手金','中間金','完成金（残金）','一括','追加工事','その他'];
 let CI=null;
 function cinvForm(siteId){
   CI={siteId,file:null};
   modal(`${mhead('お客様への請求を追加')}
   <button class="btn sub" style="margin-top:8px" onclick="cinvAttach()">📎 請求書PDFを添付（金額を読み取ります）</button><div id="ciF" class="mut"></div>
   <label>種類</label><select id="ciT">${CTYPES.map(x=>`<option>${x}</option>`).join('')}</select>
-  <label>請求日</label><input id="ciD" type="date" value="${today()}" oninput="$('ciDueHint').textContent='空欄なら '+sd(endNextMonth(this.value))+'（翌月末）を目安にします'">
+  <label>請求日</label><input id="ciD" type="date" value="${today()}" oninput="$('ciDueHint').textContent='空欄なら '+sd(endNextMonth(this.value))+' を目安にします'">
   <label>金額（税抜）</label><input id="ciA" inputmode="numeric">
   <label>金額（税込）</label><input id="ciX" inputmode="numeric" placeholder="空欄なら10%で計算">
-  <label>入金予定日</label><input id="ciDue" type="date"><div id="ciDueHint" class="mut">空欄なら ${sd(endNextMonth(today()))}（翌月末）を目安にします</div>
+  <label>入金予定日</label><input id="ciDue" type="date"><div id="ciDueHint" class="mut">空欄なら ${sd(endNextMonth(today()))} を目安にします</div>
   <label>メモ</label><input id="ciM">
   <button class="btn big" onclick="cinvSave()">保存</button>`);
 }
@@ -768,8 +772,8 @@ function viewPay(){
    <div class="mut">現場 ${esc(v.siteName||siteName(v.siteId))}・請求日 ${sd(v.date)}・税込 ${yen(tax(v.subtotal,v.total))}・受信 ${esc(v.sentAt||'')}</div>
    <div class="mut">${v.date?`${Number(v.date.slice(5,7))}月末締め → ${jd(payDate(v.date))} お支払い予定`:''}${v.memo?'・'+esc(v.memo):''}</div>
    <div class="row" style="margin-top:6px">${fbtn(v.file,'📄 請求書を見る')}<button class="btn sm" onclick="postInv(${q(v.id)})">現場に計上</button>${v.status==='新着'?`<button class="btn sub sm" onclick="markInv(${q(v.id)})">確認済にする</button>`:''}</div></div>`).join(''):'<div class="mut">未処理の請求書はありません。</div>'}</div>
-  <div class="card"><div class="row sp"><h3 style="margin:0">支払予定（末締め翌々10日払い）</h3><label class="ck"><input type="checkbox" ${PF.showPaid?'checked':''} onchange="PF.showPaid=this.checked;render()">支払済も表示</label></div>
-  <p class="mut">10日が土日祝の場合は、会社のルールで調整してください。</p>
+  <div class="card"><div class="row sp"><h3 style="margin:0">支払予定（${payRule()}）</h3><label class="ck"><input type="checkbox" ${PF.showPaid?'checked':''} onchange="PF.showPaid=this.checked;render()">支払済も表示</label></div>
+  <p class="mut">支払日が土日祝の場合は、会社のルールで調整してください。</p>
   ${Object.keys(groups).sort().map(k=>{const g=groups[k];const late=k!=='日付なし'&&k<td;return `<div style="margin-top:12px"><div class="row sp"><b class="${late&&g.some(x=>!x.paid)?'r':''}">${k==='日付なし'?k:jd(k)+' お支払い'}</b><b>税込 ${yen(sum(g,x=>x.tot))}</b></div>
    ${g.map(x=>`<div class="row sp" style="border-top:1px solid var(--line);padding:6px 0"><div><b>${esc(x.vendor||'')}</b>${x.posted?'':' <span class="tag">未計上</span>'}${x.paid?' <span class="tag ok">支払済</span>':''}<div class="mut">${esc(siteName(x.siteId))}・請求日 ${sd(x.date)}・税抜 ${yen(x.amount)}</div></div><div class="row"><span>${yen(x.tot)}</span>${fbtn(x.file,'📄')}<button class="btn sub sm" onclick="togglePaid('${x.kind}',${q(x.id)})">${x.paid?'未払に戻す':'支払済にする'}</button></div></div>`).join('')}</div>`}).join('')||'<div class="mut">支払予定はありません。</div>'}</div>`;
 }
@@ -803,6 +807,39 @@ function viewWork(){
   <p class="mut">外注さんの経費（交通費・ガソリン代など）は、今は現場の原価に入れずに別で集計しています。</p></div>${L.map(wCard).join('')}`;
 }
 
+/* ---------- 改善リクエスト ---------- */
+const RSTAT={'受付':'tag','対応中':'tag','確認待ち':'tag new','対応済':'tag ok','見送り':'tag done'};
+function reqSeenKey(){return 'extage_req_seen_'+SES.name}
+function reqSeen(){try{return JSON.parse(localStorage.getItem(reqSeenKey())||'{}')}catch(e){return{}}}
+function reqBadge(){const seen=reqSeen();const k=(D.requests||[]).filter(r=>r.by===SES.name&&(r.replies||[]).length>(seen[r.id]||0)&&(r.replies||[]).slice(-1)[0].by!==SES.name).length;return k?`<span class="badge">${k}</span>`:''}
+function reqModal(){
+  try{const m={};(D.requests||[]).forEach(r=>m[r.id]=(r.replies||[]).length);localStorage.setItem(reqSeenKey(),JSON.stringify(m))}catch(e){}
+  const L=(D.requests||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  modal(`${mhead('改善リクエスト')}
+  <p class="mut">「ここをこうしてほしい」をそのまま書いてください。Claudeが毎日8時〜20時の毎時0分ごろに確認して、画面の変更なら直して公開し、ここに返事を書きます。データの仕組みに関わる変更や、計算ルール・削除に関わる変更は、栗原さんに確認してから対応します。</p>
+  <textarea id="rqT" placeholder="例：現場一覧に「着工日」も表示してほしい"></textarea>
+  <label class="ck" style="margin-top:8px"><input type="checkbox" id="rqU">急ぎ（次の確認で最優先で対応）</label>
+  <button class="btn big" onclick="reqSend()">送る</button>
+  <h3 style="margin-top:18px">これまでのリクエスト</h3>
+  ${L.length?L.map(r=>`<div class="subrow"><div class="row sp"><span><span class="${RSTAT[r.status]||'tag'}">${esc(r.status||'受付')}</span>${r.urgent?' <span class="tag new">急ぎ</span>':''}</span><span class="mut">${esc(r.by)}・${esc(r.at)}</span></div>
+   <div style="white-space:pre-wrap;margin-top:4px">${esc(r.text)}</div>
+   ${(r.replies||[]).map(x=>`<div class="result" style="white-space:pre-wrap"><b>${esc(x.by)}</b> <span class="mut">${esc(x.at)}</span><br>${esc(x.text)}</div>`).join('')}
+   ${r.status==='確認待ち'||r.status==='対応済'?`<div class="row" style="margin-top:6px"><input id="rqR_${esc(r.id)}" placeholder="返事・追加の要望"><button class="btn sub sm" onclick="reqReply(${q(r.id)})">送る</button></div>`:''}
+   ${r.status==='受付'&&r.by===SES.name?`<button class="btn dan sm" style="margin-top:6px" onclick="reqCancel(${q(r.id)})">取り下げる</button>`:''}</div>`).join(''):'<div class="mut">まだありません。</div>'}`);
+}
+function nowStr(){return new Date().toLocaleString('sv-SE',{timeZone:'Asia/Tokyo'}).slice(0,16)}
+async function reqSend(){
+  const text=$('rqT').value.trim();if(!text)return toast('内容を書いてください');
+  const rec={text,urgent:$('rqU').checked,by:SES.name,at:nowStr(),updatedAt:nowStr(),status:'受付',replies:[]};
+  try{await api('save',{coll:'requests',rec});await reload();render();reqModal();toast('送りました。次の確認で対応します',4000)}catch(e){toast(e.message)}
+}
+async function reqReply(id){
+  const v=$('rqR_'+id).value.trim();if(!v)return;
+  const r=Object.assign({},D.requests.find(x=>x.id===id));r.replies=(r.replies||[]).concat([{by:SES.name,at:nowStr(),text:v}]);r.status='受付';r.updatedAt=nowStr();
+  try{await api('save',{coll:'requests',rec:r});await reload();render();reqModal();toast('送りました')}catch(e){toast(e.message)}
+}
+function reqCancel(id){confirmBox('このリクエストを取り下げますか？',async()=>{const r=Object.assign({},D.requests.find(x=>x.id===id));r.status='見送り';r.replies=(r.replies||[]).concat([{by:SES.name,at:nowStr(),text:'取り下げました'}]);await saveRec('requests',r,'取り下げました')},'取り下げる')}
+
 /* ---------- 管理 ---------- */
 function viewAdmin(){
   const outs=[...new Set([...D.worklogs.map(w=>w.name),...D.invoices.map(v=>v.name)])];
@@ -811,6 +848,13 @@ function viewAdmin(){
   <label>全体の目安粗利率（%）</label><input id="adT" inputmode="decimal" value="${esc(FULLCFG.targetMargin)}">
   <label>決算月</label><select id="adE">${Array.from({length:12},(_,i)=>i+1).map(m=>`<option value="${m}" ${n(FULLCFG.fiscalEndMonth)===m?'selected':''}>${m}月</option>`).join('')}</select>
   <label>現場担当者（「、」区切り）</label><input id="adM" value="${esc(FULLCFG.managers)}">
+  <label>種別（「、」区切り）</label><input id="adCat" value="${esc(FULLCFG.categories)}">
+  <label>見積・契約の段階（「、」区切り）</label><input id="adStg" value="${esc(FULLCFG.estStages)}">
+  <label>お客様への請求の種類（「、」区切り）</label><input id="adCt" value="${esc(FULLCFG.cinvTypes)}">
+  <label>外注さんの経費の候補（「、」区切り）</label><input id="adExp" value="${esc(FULLCFG.expenseItems)}">
+  <label>下請・外注さんへの支払サイクル</label><div class="row" style="flex-wrap:nowrap">末締め<select id="adPm" style="width:auto">${[[0,'当月'],[1,'翌月'],[2,'翌々月'],[3,'3か月後']].map(([v,l])=>`<option value="${v}" ${n(FULLCFG.payMonths)===v?'selected':''}>${l}</option>`).join('')}</select><input id="adPd" inputmode="numeric" style="width:70px" value="${esc(FULLCFG.payDay)}">日払い</div><p class="mut">月末払いにするときは 31 と入れてください。</p>
+  <label>お客様からの入金予定日の目安（入金予定日を空欄にしたとき）</label><div class="row" style="flex-wrap:nowrap">請求日の<select id="adDm" style="width:auto">${[[0,'当月末'],[1,'翌月末'],[2,'翌々月末'],[3,'3か月後の末']].map(([v,l])=>`<option value="${v}" ${n(FULLCFG.dueMonths)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <label>粗利率の色分け（目安から何pt下までを黄色にするか）</label><div class="row" style="flex-wrap:nowrap"><input id="adW" inputmode="decimal" style="width:80px" value="${esc(FULLCFG.warnPt)}">pt　<span class="mut">これより下は赤</span></div>
   <label>社内パスワード</label><input id="adP" inputmode="numeric" value="${esc(FULLCFG.staffPassword)}">
   <p class="mut">パスワードを変えると、ほかの社員の端末は次に開いたときにもう一度入り直しになります。</p>
   <button class="btn big" onclick="saveCfg()">設定を保存</button></div>
@@ -825,7 +869,10 @@ function viewAdmin(){
   <div class="foot"><button class="btn sub" onclick="logout()">この端末からログアウト</button></div>`;
 }
 async function saveCfg(){
-  const c={targetMargin:n($('adT').value),fiscalEndMonth:$('adE').value,managers:$('adM').value.trim(),staffPassword:$('adP').value.trim()};
+  const c={targetMargin:n($('adT').value),fiscalEndMonth:$('adE').value,managers:$('adM').value.trim(),staffPassword:$('adP').value.trim(),
+    categories:$('adCat').value.trim(),estStages:$('adStg').value.trim(),cinvTypes:$('adCt').value.trim(),expenseItems:$('adExp').value.trim(),
+    payMonths:$('adPm').value,payDay:n($('adPd').value)||10,dueMonths:$('adDm').value,warnPt:$('adW').value===''?5:n($('adW').value)};
+  if(!split(c.categories).length||!split(c.estStages).length||!split(c.cinvTypes).length)return toast('種別・段階・請求の種類は1つ以上入れてください');
   if(!c.staffPassword)return toast('パスワードを入れてください');
   try{await api('saveConfig',{config:c});SES.pw=c.staffPassword;localStorage.setItem(KEY,JSON.stringify(SES));await reload();render();toast('設定を保存しました')}catch(e){toast(e.message)}
 }
@@ -858,7 +905,7 @@ function renderOut(){
     <button class="btn big" onclick="owSave()">日報を送る</button></div>
     <h3>送った日報</h3>${logs.length?logs.slice(0,60).map(w=>`<div class="card"><div class="row sp"><b>${jd(w.date)}</b><button class="btn dan sm" onclick="owDel(${q(w.id)})">削除</button></div><div class="mut">${esc(w.siteName)}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`).join(''):'<div class="card mut">まだありません。</div>'}`;
   }else{
-    body=`<div class="card"><h3>請求書を送る</h3><p class="mut">PDFかスマホで撮った写真を選んでください。金額は自動で読み取ります。お支払いは末締め翌々月10日です。</p><button class="btn big" onclick="oiPick()">📄 請求書を選ぶ</button></div>
+    body=`<div class="card"><h3>請求書を送る</h3><p class="mut">PDFかスマホで撮った写真を選んでください。金額は自動で読み取ります。お支払いは${payRule()}です。</p><button class="btn big" onclick="oiPick()">📄 請求書を選ぶ</button></div>
     <h3>送った請求書</h3>${inv.length?inv.map(v=>`<div class="card"><div class="row sp"><b>${esc(v.siteName||'')}</b><span class="tag ${v.status==='新着'?'':'ok'}">${v.status==='計上済'||v.status==='確認済'?'受付済':'送信済'}</span></div>
      <div>税抜 ${yen(v.subtotal)}　<span class="mut">税込 ${yen(tax(v.subtotal,v.total))}</span></div>
      <div class="mut">請求日 ${sd(v.date)}${v.date?`・${Number(v.date.slice(5,7))}月末締め → ${jd(payDate(v.date))} お支払い予定`:''}</div>
@@ -870,7 +917,7 @@ function renderOut(){
   if(OV.tab==='log'){owExpRender();owH()}
 }
 function owSetHas(v){OW.has=v;if(v&&!OW.exp.length)OW.exp=[{item:'交通費',amount:''}];if(!v)OW.exp=[];document.querySelectorAll('#owHasC .chip').forEach((c,i)=>c.classList.toggle('on',i===(v?1:0)));owExpRender()}
-function owExpRender(){const el=$('owExp');if(!el)return;el.innerHTML=OW.has?OW.exp.map((e,i)=>`<div class="row" style="flex-wrap:nowrap;margin-top:6px"><input placeholder="何に（交通費・ガソリン代など）" value="${esc(e.item)}" oninput="OW.exp[${i}].item=this.value"><input placeholder="金額" inputmode="numeric" style="width:40%" value="${esc(e.amount)}" oninput="OW.exp[${i}].amount=this.value"><button class="btn dan sm" onclick="OW.exp.splice(${i},1);owExpRender()">×</button></div>`).join('')+`<button class="btn sub sm" style="margin-top:6px" onclick="OW.exp.push({item:'',amount:''});owExpRender()">＋ 経費を追加</button>`:''}
+function owExpRender(){const el=$('owExp');if(!el)return;el.innerHTML=OW.has?OW.exp.map((e,i)=>`<div class="row" style="flex-wrap:nowrap;margin-top:6px"><input placeholder="何に（交通費・ガソリン代など）" list="expList" value="${esc(e.item)}" oninput="OW.exp[${i}].item=this.value"><input placeholder="金額" inputmode="numeric" style="width:40%" value="${esc(e.amount)}" oninput="OW.exp[${i}].amount=this.value"><button class="btn dan sm" onclick="OW.exp.splice(${i},1);owExpRender()">×</button></div>`).join('')+`<button class="btn sub sm" style="margin-top:6px" onclick="OW.exp.push({item:'',amount:''});owExpRender()">＋ 経費を追加</button><datalist id="expList">${(CFG.expenseItems||[]).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`:''}
 function owH(){const w={start:$('owA').value,end:$('owB').value,breakMin:$('owBr').value};$('owHr').textContent='作業時間 '+hrs(w).toFixed(1)+'時間'}
 async function owSave(){
   const siteId=$('owS').value;if(!siteId)return toast('現場を選んでください');
