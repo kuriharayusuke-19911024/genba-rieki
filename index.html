@@ -816,7 +816,7 @@ function reqModal(){
   try{const m={};(D.requests||[]).forEach(r=>m[r.id]=(r.replies||[]).length);localStorage.setItem(reqSeenKey(),JSON.stringify(m))}catch(e){}
   const L=(D.requests||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
   modal(`${mhead('改善リクエスト')}
-  <p class="mut">「ここをこうしてほしい」をそのまま書いてください。Claudeが毎日8時〜20時の毎時0分ごろに確認して、画面の変更なら直して公開し、ここに返事を書きます。データの仕組みに関わる変更や、計算ルール・削除に関わる変更は、栗原さんに確認してから対応します。</p>
+  <p class="mut">「ここをこうしてほしい」をそのまま書いてください。Claudeが毎日8時〜20時に1時間ごとに確認して、画面の変更なら直して公開し、ここに返事を書きます。データの仕組みに関わる変更や、計算ルール・削除に関わる変更は、栗原さんに確認してから対応します。</p>
   <textarea id="rqT" placeholder="例：現場一覧に「着工日」も表示してほしい"></textarea>
   <label class="ck" style="margin-top:8px"><input type="checkbox" id="rqU">急ぎ（次の確認で最優先で対応）</label>
   <button class="btn big" onclick="reqSend()">送る</button>
