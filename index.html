@@ -407,9 +407,21 @@ function siteGai(s,m){
   ${marginBoxes(m.target,m.plan,m.act)}
   ${m.over?`<div class="tgt ng" style="margin-top:8px">⚠ 予算超過：請求が実行予算を ${yen(m.cost-m.budget)} 上回っています</div>`:''}
   ${m.withPros!=null?`<div class="result">見込みの追加工事（${yen(m.prSales)}）を含めると粗利率 ${pct(m.withPros)}</div>`:''}
-  </div>${period}
+  </div>${period}${scheduleCard(s)}
   <div class="row sp"><button class="btn sub" onclick="toggleDone(${q(s.id)})">${s.status==='完了'?'進行中に戻す':'完了にする'}</button><button class="btn dan sm" onclick="delSite(${q(s.id)})">この現場を削除</button></div>`;
 }
+function scheduleCard(s){
+  const L=(s.schedules||[]).slice().sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+  return `<div class="card"><div class="row sp"><h3 style="margin:0">工程表</h3><button class="btn sm" onclick="schedAdd(${q(s.id)})">＋ 工程表を添付</button></div>
+  ${L.length?L.map((f,i)=>`<div class="row sp" style="border-top:1px solid var(--line);padding:8px 0;margin-top:${i?0:8}px"><div><b>${esc(f.title||f.fileName)}</b>${i===0?' <span class="tag ok">最新</span>':''}<div class="mut">${esc(f.by||'')}・${esc(f.at||'')}</div></div><div class="row">${fbtn(f,'📄 開く')}<button class="btn dan sm" onclick="schedDel(${q(s.id)},${q(f.fileId)})">削除</button></div></div>`).join(''):'<p class="mut" style="margin:8px 0 0">まだ工程表がありません。PDFか写真を添付できます。変更があったら新しい工程表を追加してください（古いものも残ります）。</p>'}</div>`;
+}
+async function schedAdd(siteId){
+  const f=await pickFile();if(!f)return;
+  try{const j=await uploadFile(f,false);const s=Object.assign({},D.sites.find(x=>x.id===siteId));
+    s.schedules=(s.schedules||[]).concat([Object.assign({},j.file,{title:f.name.replace(/\.[^.]+$/,''),by:SES.name,at:nowStr()})]);
+    await saveRec('sites',s,'工程表を添付しました')}catch(e){toast(e.message)}
+}
+function schedDel(siteId,fileId){confirmBox('この工程表を削除しますか？',async()=>{const s=Object.assign({},D.sites.find(x=>x.id===siteId));s.schedules=(s.schedules||[]).filter(f=>f.fileId!==fileId);await saveRec('sites',s,'削除しました')},'削除する')}
 async function saveRec(coll,rec,msg){try{const j=await api('save',{coll,rec});await reload();render();toast(msg||'保存しました');return j.rec}catch(e){toast(e.message)}}
 async function removeRec(coll,id,file){try{await api('remove',{coll,id,file:file||null});await reload();render();toast('削除しました')}catch(e){toast(e.message)}}
 function toggleDone(id){const s=Object.assign({},D.sites.find(x=>x.id===id));s.status=s.status==='完了'?'進行中':'完了';saveRec('sites',s)}
@@ -732,6 +744,7 @@ function allDocs(){
   const L=[];
   D.budget.forEach(b=>b.file&&L.push({type:'下請見積',company:b.vendor,date:(b.parsed&&b.parsed.date)||b.created||'',sub:n(b.quote),tot:tax(b.quote,b.taxIncl),siteId:b.siteId,file:b.file,read:!!b.parsed}));
   D.estimates.forEach(e=>e.file&&L.push({type:e.stage==='請負契約書'?'契約書':'お客様見積',company:e.stage,date:e.date||'',sub:n(e.amount),tot:tax(e.amount,e.taxIncl),siteId:e.siteId,file:e.file,read:!!e.parsed}));
+  D.sites.forEach(st=>(st.schedules||[]).forEach(f=>L.push({type:'工程表',company:f.title||'',date:(f.at||'').slice(0,10),sub:0,tot:0,siteId:st.id,file:f,read:false,noAmt:true})));
   D.cinvoices.forEach(c=>c.file&&L.push({type:'お客様請求',company:c.type,date:c.date||'',sub:n(c.amount),tot:tax(c.amount,c.taxIncl),siteId:c.siteId,file:c.file,read:!!c.parsed}));
   D.bills.forEach(b=>b.file&&L.push({type:'請求書',company:b.vendor,date:b.date||'',sub:n(b.amount),tot:tax(b.amount,b.taxIncl),siteId:b.siteId,file:b.file,read:!!(b.parsed||b.invoiceId)}));
   D.invoices.filter(v=>!v.billId).forEach(v=>v.file&&L.push({type:'請求書',company:v.name,date:v.date||(v.sentAt||'').slice(0,10),sub:n(v.subtotal),tot:tax(v.subtotal,v.total),siteId:v.siteId,file:v.file,read:!!v.parsed}));
@@ -744,11 +757,11 @@ function viewDocs(){
   if(DF.q){const k=DF.q.toLowerCase();L=L.filter(d=>[d.company,siteName(d.siteId),d.file.fileName].join(' ').toLowerCase().includes(k))}
   const groups={};L.forEach(d=>{const k=(d.date||'').slice(0,7)||'日付なし';(groups[k]=groups[k]||[]).push(d)});
   return `<div class="card"><h3>PDF一覧</h3>
-  <div class="chips">${['all','下請見積','お客様見積','契約書','お客様請求','請求書'].map(t=>`<button class="chip ${DF.type===t?'on':''}" onclick="DF.type='${t}';render()">${t==='all'?'すべて':t==='請求書'?'下請請求':t}</button>`).join('')}</div>
+  <div class="chips">${['all','下請見積','お客様見積','契約書','お客様請求','請求書','工程表'].map(t=>`<button class="chip ${DF.type===t?'on':''}" onclick="DF.type='${t}';render()">${t==='all'?'すべて':t==='請求書'?'下請請求':t}</button>`).join('')}</div>
   <div class="row" style="margin-top:8px;flex-wrap:nowrap"><select onchange="DF.site=this.value;render()"><option value="all">すべての現場</option>${D.sites.map(s=>`<option value="${esc(s.id)}" ${DF.site===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select><input placeholder="会社・現場・ファイル名で検索" value="${esc(DF.q)}" onchange="DF.q=this.value.trim();render()"></div>
   <div class="mut" style="margin-top:6px">${L.length}件・税抜合計 ${yen(sum(L,d=>d.sub))}</div></div>
   ${Object.keys(groups).sort().reverse().map(k=>`<h3>${k==='日付なし'?k:k.replace('-','年')+'月'}</h3>`+groups[k].map(d=>`<div class="card site" onclick="viewFile(${q(d.file.fileId)},${q(d.file.fileName)})"><div class="row sp"><span><span class="tag">${d.type==='請求書'?'下請請求':d.type}</span> <b>${esc(d.company||'')}</b></span><span class="mut">${sd(d.date)}</span></div>
-   <div class="row sp"><span>税抜 ${yen(d.sub)}　<span class="mut">税込 ${yen(d.tot)}</span></span>${d.read?'<span class="tag ok">読取済</span>':''}</div>
+   ${d.noAmt?'':`<div class="row sp"><span>税抜 ${yen(d.sub)}　<span class="mut">税込 ${yen(d.tot)}</span></span>${d.read?'<span class="tag ok">読取済</span>':''}</div>`}
    <div class="mut">現場：<a onclick="event.stopPropagation();openSite(${q(d.siteId)})">${esc(siteName(d.siteId))}</a>・📄 ${esc(d.file.fileName)}</div></div>`).join('')).join('')||'<div class="card mut">該当するPDFはありません。</div>'}
   <div class="card" style="margin-top:20px"><div class="row sp"><h3 style="margin:0">書類の雛形</h3><button class="btn sm" onclick="tplAdd()">＋ 雛形を追加</button></div>
   <p class="mut">会社の見積書・請負契約書・注文書などの決まった書式を置いておく場所です（PDF・画像）。編集用のExcel・Wordの原本はパソコンや共有フォルダで管理してください。</p>

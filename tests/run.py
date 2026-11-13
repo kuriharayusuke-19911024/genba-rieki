@@ -55,6 +55,7 @@ async def main():
     await click('下請請求'); await click('＋ 請求を追加')
     await pg.fill('#blV','A工業'); await pg.fill('#blD','2026-11-10'); await pg.fill('#blA','600000'); await click('保存'); await pg.wait_for_timeout(200)
     await click('概要'); t=await txt(); assert '70.0%' in t; print('actual margin 70% ok')
+    await attach('＋ 工程表を添付'); t=await txt(); assert '最新' in t and 'dummy' in t; print('schedule attach ok')
     # client invoice
     await click('請求・入金'); await click('＋ 請求を追加')
     window_parsed={'kind':'請求書','company':'エクステージ','date':'2026-08-01','subtotal':1000000,'tax':100000,'total':1100000}
