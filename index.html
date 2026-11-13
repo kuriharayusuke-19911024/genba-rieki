@@ -283,10 +283,10 @@ function catTable(){
 }
 function siteCard(s){
   const m=M(s);
-  return `<div class="card site" onclick="openSite(${q(s.id)})"><div class="row sp" style="flex-wrap:nowrap"><div><span class="tag">${esc(s.category||'未分類')}</span>${s.status==='完了'?' <span class="tag done">完了</span>':''}${!inP(s)?` <span class="tag done">${perOf(s)}計上</span>`:''}${m.over?' <span class="tag new">予算超過</span>':''}<div class="b" style="margin-top:3px">${esc(s.name)}</div></div>
+  return `<div class="card site" onclick="openSite(${q(s.id)})"><div class="row sp" style="flex-wrap:nowrap"><div><span class="tag">${esc(s.category||'未分類')}</span>${s.status==='完了'?' <span class="tag done">完了</span>':''}${!inP(s)?` <span class="tag done">${perOf(s)}計上</span>`:''}${m.over?' <span class="tag new">予算超過</span>':''}<div class="b" style="margin-top:3px">${esc(s.name)}</div>${s.address?`<div class="mut addr">📍 ${esc(s.address)}</div>`:''}</div>
   <div style="text-align:right"><div class="big ${col(m.act,m.target)}">${pct(m.act)}</div><div class="mut">実動粗利率</div></div></div>
   <div class="mut">売上 ${yen(m.sales)}・目安 ${pct(m.target)}・予定 ${pct(m.plan)}</div>
-  <div class="mut">${s.client?esc(s.client)+'様・':''}担当 ${esc(s.manager||'未定')}・営業 ${esc(s.sales||'—')}・工期 ${sd(s.startDate)}〜${sd(s.endDate)}</div>${payLine(s,m)}</div>`;
+  <div class="mut">${s.client?esc(s.client)+'様・':''}担当 ${esc(s.manager||'未定')}${s.sales?'・紹介 '+esc(s.sales):''}・工期 ${sd(s.startDate)}〜${sd(s.endDate)}</div>${payLine(s,m)}</div>`;
 }
 function payLine(s,m){
   const p=P(s,m);if(!p.full&&!p.L.length)return'';
@@ -381,7 +381,7 @@ function viewSite(){
   const m=M(s);
   const st=[['gai','概要'],['cinv','請求・入金'],['bud','実行予算'],['est','見積・契約'],['bill','下請請求'],['rep','日報'],['out','外注']];
   return `<div class="row sp"><button class="btn sub sm" onclick="backFromSite()">← 戻る</button><button class="btn sub sm" onclick="siteForm(${q(s.id)})">編集</button></div>
-  <h2>${esc(s.name)}</h2>${s.client?`<div><a class="b" onclick="openClient(${q(s.client)})">${esc(s.client)}様 ›</a></div>`:''}${payBox(s,m)}<div class="mut"><span class="tag">${esc(s.category||'未分類')}</span> 担当 ${s.manager&&s.manager!=='未定'?`<a onclick="openPerson(${q(s.manager)})">${esc(s.manager)}</a>`:'未定'}・営業 ${s.sales?`<a onclick="openPerson(${q(s.sales)})">${esc(s.sales)}</a>`:'—'}</div>
+  <h2>${esc(s.name)}</h2>${s.address?`<div class="mut addr">📍 ${esc(s.address)}　<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.address)}" target="_blank" rel="noopener">地図で開く</a></div>`:''}${s.client?`<div><a class="b" onclick="openClient(${q(s.client)})">${esc(s.client)}様 ›</a></div>`:''}${payBox(s,m)}<div class="mut"><span class="tag">${esc(s.category||'未分類')}</span> 担当 ${s.manager&&s.manager!=='未定'?`<a onclick="openPerson(${q(s.manager)})">${esc(s.manager)}</a>`:'未定'}${s.sales?`・紹介（営業窓口） ${esc(s.sales)}`:''}</div>
   <div class="stabs">${st.map(([k,l])=>`<button class="${V.stab===k?'on':''}" onclick="V.stab='${k}';render()">${l}</button>`).join('')}</div>
   ${({gai:siteGai,cinv:siteCinv,bud:siteBud,est:siteEst,bill:siteBill,rep:siteRep,out:siteOut})[V.stab](s,m)}`;
 }
@@ -633,6 +633,7 @@ function siteForm(id){
   const mgrs=[...new Set([...CFG.managers,'未定',s.manager].filter(Boolean))];
   modal(`${mhead(id?'現場を編集':'現場を追加')}
   <label>現場名</label><input id="sfName" value="${esc(s.name||'')}">
+  <label>現場の住所（任意）</label><input id="sfAd" value="${esc(s.address||'')}" placeholder="例：大阪市北区〇〇1-2-3">
   <label>種別</label><div class="chips" id="sfCats">${CATS.map(c=>`<button class="chip ${SF.cat===c?'on':''}" onclick="SF.cat=${q(c)};document.querySelectorAll('#sfCats .chip').forEach(b=>b.classList.toggle('on',b.textContent===SF.cat))">${esc(c)}</button>`).join('')}</div>
   <label>元請・施主（お客様）</label><input id="sfCl" list="clList" value="${esc(s.client||'')}"><datalist id="clList">${[...new Set(D.sites.map(x=>x.client).filter(Boolean))].map(x=>`<option value="${esc(x)}">`).join('')}</datalist>
   <div class="row" style="flex-wrap:nowrap"><div style="flex:1"><label>着工日（予定）</label><input id="sfS" type="date" value="${esc(s.startDate||'')}"></div><div style="flex:1"><label>完成日（予定）</label><input id="sfE" type="date" value="${esc(s.endDate||'')}"></div></div>
@@ -650,7 +651,7 @@ async function saveSite(){
   const id=SF.id;
   const rec=id?Object.assign({},D.sites.find(x=>x.id===id)):{created:today(),status:'進行中'};
   rec.name=$('sfName').value.trim();if(!rec.name)return toast('現場名を入れてください');
-  rec.category=SF.cat;rec.client=$('sfCl').value.trim();rec.startDate=$('sfS').value;rec.endDate=$('sfE').value;
+  rec.category=SF.cat;rec.address=$('sfAd').value.trim();rec.client=$('sfCl').value.trim();rec.startDate=$('sfS').value;rec.endDate=$('sfE').value;
   rec.manager=$('sfM').value;rec.sales=$('sfSa').value.trim();if(id)rec.status=$('sfSt').value;
   const oldC=n(rec.contract);rec.contract=n($('cwC').value);rec.targetMargin=$('cwR').value===''?'':n($('cwR').value);
   if(SF.est&&SF.est.parsed&&SF.est.parsed.total!=null&&n(SF.est.parsed.subtotal)===rec.contract)rec.contractTax=SF.est.parsed.total;
@@ -667,30 +668,30 @@ async function saveSite(){
 }
 
 /* ---------- 担当者 ---------- */
-function pSites(name,role){return D.sites.filter(s=>inP(s)&&((role!=='sales'&&s.manager===name)||(role!=='mgr'&&s.sales===name)))}
+function pSites(name){return D.sites.filter(s=>inP(s)&&s.manager===name)}
 function viewPerson(){
   if(V.pmode==='client')return viewClients();
   if(V.person)return viewPersonDetail();
   const all=agg(D.sites.filter(inP));
-  const names=[...new Set([...CFG.managers,...D.sites.map(s=>s.manager),...D.sites.map(s=>s.sales)].filter(x=>x&&x!=='未定'))];
-  const rows=names.map(nm=>{const ss=pSites(nm,'all');return{nm,a:agg(ss),mg:ss.filter(s=>s.manager===nm).length,sl:ss.filter(s=>s.sales===nm).length}}).sort((x,y)=>y.a.sales-x.a.sales);
+  const names=[...new Set([...CFG.managers,...D.sites.map(s=>s.manager)].filter(x=>x&&x!=='未定'))];
+  const rows=names.map(nm=>{const ss=pSites(nm);return{nm,a:agg(ss),mg:ss.length}}).sort((x,y)=>y.a.sales-x.a.sales);
   return modeChips()+`<div class="card">${periodSel()}</div>`+(rows.length?rows.map(r=>{const sh=all.sales?r.a.sales/all.sales:0;return `<div class="card site" onclick="openPerson(${q(r.nm)})"><div class="row sp"><b>${esc(r.nm)}</b><span class="big ${col(r.a.act)}">${pct(r.a.act)}</span></div>
-  <div class="mut">現場担当 ${r.mg}件・営業窓口 ${r.sl}件</div>
+  <div class="mut">現場担当 ${r.mg}件</div>
   <div class="row sp"><span>売上 ${yen(r.a.sales)}</span><span>粗利 ${yen(r.a.gross)}</span></div>
   <div class="bar" style="margin:6px 0"><i style="width:${sh*100}%;background:var(--blue)"></i></div><div class="row sp mut"><span>売上構成比 ${pct(sh)}</span><span class="${col(r.a.act)}">${r.a.act!=null?'全体目安比 '+pt(r.a.act-T()):''}</span></div></div>`}).join(''):'<div class="card mut">担当者がまだいません。</div>');
 }
 function viewPersonDetail(){
-  const nm=V.person,ss=pSites(nm,V.prole),a=agg(ss),all=agg(D.sites.filter(inP));
+  const nm=V.person,ss=pSites(nm),a=agg(ss),all=agg(D.sites.filter(inP));
   const shS=all.sales?a.sales/all.sales:null,shG=all.gross?a.gross/all.gross:null;
   return `<div class="row sp"><button class="btn sub sm" onclick="V.person=null;render()">‹ 担当者一覧へ</button></div><h2>${esc(nm)}</h2>
-  <div class="card">${periodSel()}<div class="chips" style="margin-top:8px">${[['all','すべて'],['mgr','現場担当'],['sales','営業窓口']].map(([k,l])=>`<button class="chip ${V.prole===k?'on':''}" onclick="V.prole='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="card">${periodSel()}
   <div class="grid" style="margin-top:10px">
    <div class="kpi"><div class="l">売上合計</div><div class="v">${yen(a.sales)}</div><div class="mut">売上構成比 ${pct(shS)}</div></div>
    <div class="kpi"><div class="l">原価</div><div class="v">${yen(a.cost)}</div><div class="mut">原価率 ${a.sales?pct(a.cost/a.sales):'—'}</div></div>
    <div class="kpi"><div class="l">粗利</div><div class="v">${yen(a.gross)}</div><div class="mut">全社粗利に占める割合 ${pct(shG)}</div></div></div>
   ${targetStrip(a.act,esc(nm)+'さんの粗利率')}${marginBoxes(a.target,a.plan,a.act)}</div>
   <div class="card tw"><table><tr><th>工事</th><th class="num">売上</th><th class="num">構成比</th><th class="num">目安</th><th class="num">予定</th><th class="num">実動</th></tr>
-  ${ss.map(s=>{const m=M(s);return `<tr class="site" onclick="openSite(${q(s.id)},'person')"><td><a>${esc(s.name)}</a><div class="mut">${esc(s.category||'')}${s.manager===nm?'・担当':''}${s.sales===nm?'・営業':''}</div></td><td class="num">${yen(m.sales)}</td><td class="num">${a.sales?pct(m.sales/a.sales):'—'}</td><td class="num">${pct(m.target)}</td><td class="num ${col(m.plan,m.target)}">${pct(m.plan)}</td><td class="num ${col(m.act,m.target)}">${pct(m.act)}</td></tr>`}).join('')}
+  ${ss.map(s=>{const m=M(s);return `<tr class="site" onclick="openSite(${q(s.id)},'person')"><td><a>${esc(s.name)}</a><div class="mut">${esc(s.category||'')}</div></td><td class="num">${yen(m.sales)}</td><td class="num">${a.sales?pct(m.sales/a.sales):'—'}</td><td class="num">${pct(m.target)}</td><td class="num ${col(m.plan,m.target)}">${pct(m.plan)}</td><td class="num ${col(m.act,m.target)}">${pct(m.act)}</td></tr>`}).join('')}
   <tr><th>合計 ${ss.length}件</th><th class="num">${yen(a.sales)}</th><th class="num">100%</th><th class="num">${pct(a.target)}</th><th class="num">${pct(a.plan)}</th><th class="num">${pct(a.act)}</th></tr></table></div>`;
 }
 
@@ -909,7 +910,8 @@ function renderOut(){
     if(!OW)OW={exp:[],has:false};
     body=`<div class="card"><h3>作業日報</h3>
     <label>日付</label><input id="owD" type="date" value="${today()}">
-    <label>現場</label><select id="owS"><option value="">選んでください</option>${OUT.sites.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select>
+    <label>現場</label><select id="owS" onchange="owOther()"><option value="">選んでください</option>${OUT.sites.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}<option value="__other">その他（一覧にない現場など）</option></select>
+    <div id="owOt" style="display:none"><label>現場名</label><input id="owOn" placeholder="例：〇〇様邸（着工前）、事務所"><label>作業名</label><input id="owOw" placeholder="例：下見、事務所の掃除"><label>作業場所</label><input id="owOp" placeholder="例：〇〇市〇〇町、本社事務所"></div>
     <div class="row" style="flex-wrap:nowrap"><div style="flex:1"><label>開始</label><input id="owA" type="time" value="08:00" oninput="owH()"></div><div style="flex:1"><label>終了</label><input id="owB" type="time" value="17:00" oninput="owH()"></div><div style="flex:1"><label>休憩（分）</label><input id="owBr" inputmode="numeric" value="60" oninput="owH()"></div></div>
     <div id="owHr" class="mut" style="margin-top:4px"></div>
     <label>作業内容</label><textarea id="owW"></textarea>
@@ -932,9 +934,17 @@ function renderOut(){
 function owSetHas(v){OW.has=v;if(v&&!OW.exp.length)OW.exp=[{item:'交通費',amount:''}];if(!v)OW.exp=[];document.querySelectorAll('#owHasC .chip').forEach((c,i)=>c.classList.toggle('on',i===(v?1:0)));owExpRender()}
 function owExpRender(){const el=$('owExp');if(!el)return;el.innerHTML=OW.has?OW.exp.map((e,i)=>`<div class="row" style="flex-wrap:nowrap;margin-top:6px"><input placeholder="何に（交通費・ガソリン代など）" list="expList" value="${esc(e.item)}" oninput="OW.exp[${i}].item=this.value"><input placeholder="金額" inputmode="numeric" style="width:40%" value="${esc(e.amount)}" oninput="OW.exp[${i}].amount=this.value"><button class="btn dan sm" onclick="OW.exp.splice(${i},1);owExpRender()">×</button></div>`).join('')+`<button class="btn sub sm" style="margin-top:6px" onclick="OW.exp.push({item:'',amount:''});owExpRender()">＋ 経費を追加</button><datalist id="expList">${(CFG.expenseItems||[]).map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`:''}
 function owH(){const w={start:$('owA').value,end:$('owB').value,breakMin:$('owBr').value};$('owHr').textContent='作業時間 '+hrs(w).toFixed(1)+'時間'}
+function owOther(){const el=$('owOt');if(el)el.style.display=$('owS').value==='__other'?'':'none'}
 async function owSave(){
-  const siteId=$('owS').value;if(!siteId)return toast('現場を選んでください');
-  const rec={date:$('owD').value,siteId,siteName:(OUT.sites.find(s=>s.id===siteId)||{}).name||'',start:$('owA').value,end:$('owB').value,breakMin:n($('owBr').value),work:$('owW').value.trim(),expenses:OW.has?OW.exp.filter(e=>e.item.trim()||n(e.amount)).map(e=>({item:e.item.trim(),amount:n(e.amount)})):[]};
+  let siteId=$('owS').value;if(!siteId)return toast('現場を選んでください');
+  let siteName=(OUT.sites.find(s=>s.id===siteId)||{}).name||'',head='';
+  if(siteId==='__other'){
+    const on=$('owOn').value.trim(),ow=$('owOw').value.trim(),op=$('owOp').value.trim();
+    if(!on)return toast('現場名を入れてください');
+    siteId='';siteName='その他：'+on;head=[ow&&'作業名：'+ow,op&&'作業場所：'+op].filter(Boolean).join('\n');
+  }
+  const body=$('owW').value.trim();
+  const rec={date:$('owD').value,siteId,siteName,work:[head,body].filter(Boolean).join('\n'),start:$('owA').value,end:$('owB').value,breakMin:n($('owBr').value),expenses:OW.has?OW.exp.filter(e=>e.item.trim()||n(e.amount)).map(e=>({item:e.item.trim(),amount:n(e.amount)})):[]};
   if(!rec.work)return toast('作業内容を入れてください');
   try{await api('saveWorklog',{rec});OW=null;await reloadOut();renderOut();toast('日報を送りました')}catch(e){toast(e.message)}
 }

@@ -40,7 +40,7 @@ async def main():
     await click('閉じる')
     # add site
     await click('＋ 現場を追加')
-    await pg.fill('#sfName','福島1丁目ビル新築工事'); await pg.fill('#sfCl','山口一樹'); await pg.fill('#sfS','2026-10-01'); await pg.fill('#sfE','2027-03-31')
+    await pg.fill('#sfName','福島1丁目ビル新築工事'); await pg.fill('#sfAd','大阪市福島区福島1-1-1'); await pg.fill('#sfCl','山口一樹'); await pg.fill('#sfS','2026-10-01'); await pg.fill('#sfE','2027-03-31')
     await pg.select_option('#sfM','牛尾和寛'); await pg.fill('#sfSa','〇〇不動産（紹介）')
     await attach('📎 見積書PDFを添付')
     print('contract from pdf:',await pg.input_value('#cwC')); assert await pg.input_value('#cwC')=='1000000'
@@ -51,6 +51,7 @@ async def main():
     print('r=',await pg.input_value('#cwR')); assert await pg.input_value('#cwR')=='25.0'
     await click('保存'); await pg.wait_for_timeout(300)
     t=await txt(); assert '福島1丁目ビル新築工事' in t and '山口一樹様' in t; print('site saved')
+    assert '大阪市福島区福島1-1-1' in t and '地図で開く' in t; print('address ok')
     await click('実行予算'); t=await txt(); assert 'A工業' in t and '¥1,500,000' in t; print('budget ok')
     await click('下請請求'); await click('＋ 請求を追加')
     await pg.fill('#blV','A工業'); await pg.fill('#blD','2026-11-10'); await pg.fill('#blA','600000'); await click('保存'); await pg.wait_for_timeout(200)
@@ -82,6 +83,8 @@ async def main():
     for tab in ['担当・お客様','書類','入金・支払','外注日報','管理']:
       await click(tab); await pg.wait_for_timeout(100)
     await pg.evaluate("F.period='all'"); await click('担当・お客様'); await pg.get_by_text('牛尾和寛').first.click(); t=await txt(); assert '福島1丁目ビル新築工事' in t
+    await click('‹ 担当者一覧へ'); t=await txt(); assert '営業窓口' not in t and '〇〇不動産' not in t; print('no sales in person ok')
+    await pg.get_by_text('牛尾和寛').first.click()
     await click('‹ 担当者一覧へ'); await click('お客様（元請・施主）'); await pg.get_by_text('山口一樹様').first.click(); t=await txt(); assert '総利益' in t
     await pg.get_by_text('福島1丁目ビル新築工事').first.click(); await click('← 戻る'); t=await txt(); assert '山口一樹様' in t
     await click('‹ お客様一覧へ'); print('person/client ok')
@@ -94,6 +97,9 @@ async def main():
     await pg.select_option('#owS',index=1); await pg.fill('#owW','外壁塗装'); await click('あり')
     e=pg.locator('#owExp input'); await e.nth(1).fill('1200'); await e.nth(1).dispatch_event('input')
     await click('日報を送る'); await pg.wait_for_timeout(200); t=await txt(); assert '外壁塗装' in t and '8.0時間' in t; print('worklog ok')
+    await pg.select_option('#owS','__other'); await pg.fill('#owOn','事務所'); await pg.fill('#owOw','事務所の掃除'); await pg.fill('#owOp','本社事務所'); await pg.fill('#owW','')
+    await pg.screenshot(path=OUT+'/out_other.png',full_page=True)
+    await click('日報を送る'); await pg.wait_for_timeout(200); t=await txt(); assert 'その他：事務所' in t and '作業名：事務所の掃除' in t and '作業場所：本社事務所' in t; print('worklog other ok')
     await click('請求書'); await pg.evaluate("window.__mockParsed={company:'田中塗装',date:'2026-11-20',subtotal:450000,tax:45000,total:495000}")
     await attach('📄 請求書を選ぶ'); await pg.select_option('#oiS',index=1); t=await pg.inner_text('#oiP'); print(t); assert '2027年1月10日（日）' in t
     await click('送る'); await pg.wait_for_timeout(200); t=await txt(); assert '送信済' in t
