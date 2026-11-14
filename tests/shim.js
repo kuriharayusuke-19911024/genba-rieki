@@ -23,6 +23,7 @@ window.Utilities={getUuid(){return Math.random().toString(16).slice(2,10)+'-x'},
 window.LockService={getScriptLock(){return{waitLock(){},releaseLock(){}}}};
 const props={ANTHROPIC_API_KEY:'test'};
 window.PropertiesService={getScriptProperties(){return{getProperty:k=>props[k],setProperty:(k,v)=>props[k]=v}}};
+window.__mails=[];window.MailApp={sendEmail(o){window.__mails.push(o)}};window.Session={getEffectiveUser(){return{getEmail:()=>'owner@example.com'}}};
 window.ContentService={MimeType:{JSON:1},createTextOutput(t){return{setMimeType(){return this},t}}};
 window.__mockParsed={kind:'見積書',company:'山田工務店',date:'2026-11-05',subtotal:1000000,tax:100000,total:1100000,title:'テスト'};
 window.UrlFetchApp={fetch(url,o){const body=JSON.parse(o.payload);window.__aiCalls=(window.__aiCalls||0)+1;return{getResponseCode:()=>200,getContentText:()=>JSON.stringify({content:[{type:'text',text:'```json\n'+JSON.stringify(window.__mockParsed)+'\n```'}]})}}};

@@ -88,6 +88,9 @@ async def main():
     await click('‹ 担当者一覧へ'); await click('お客様（元請・施主）'); await pg.get_by_text('山口一樹様').first.click(); t=await txt(); assert '総利益' in t
     await pg.get_by_text('福島1丁目ビル新築工事').first.click(); await click('← 戻る'); t=await txt(); assert '山口一樹様' in t
     await click('‹ お客様一覧へ'); print('person/client ok')
+    # notify emails setting
+    await pg.locator('nav button',has_text='管理').click(); await pg.fill('#adN','a@example.com、b@example.com'); await pg.get_by_text('設定を保存',exact=True).click(); await pg.wait_for_timeout(300)
+    assert await pg.input_value('#adN')=='a@example.com、b@example.com'; print('notify setting ok')
     # outsourcer
     await pg.evaluate("SES=null;localStorage.removeItem(KEY);LG.role=null;renderLogin()")
     await click('外注・協力業者の方'); await pg.fill('#lgName','田中塗装'); await click('入る'); await pg.wait_for_timeout(200)
@@ -97,12 +100,14 @@ async def main():
     await pg.select_option('#owS',index=1); await pg.fill('#owW','外壁塗装'); await click('あり')
     e=pg.locator('#owExp input'); await e.nth(1).fill('1200'); await e.nth(1).dispatch_event('input')
     await click('日報を送る'); await pg.wait_for_timeout(200); t=await txt(); assert '外壁塗装' in t and '8.0時間' in t; print('worklog ok')
+    ml=await pg.evaluate('window.__mails'); assert len(ml)==1 and ml[0]['to']=='a@example.com,b@example.com' and '田中塗装さんから日報' in ml[0]['subject'] and '¥' not in ml[0]['body'] and '1200' not in ml[0]['body'], ml; print('notify worklog ok')
     await pg.select_option('#owS','__other'); await pg.fill('#owOn','事務所'); await pg.fill('#owOw','事務所の掃除'); await pg.fill('#owOp','本社事務所'); await pg.fill('#owW','')
     await pg.screenshot(path=OUT+'/out_other.png',full_page=True)
     await click('日報を送る'); await pg.wait_for_timeout(200); t=await txt(); assert 'その他：事務所' in t and '作業名：事務所の掃除' in t and '作業場所：本社事務所' in t; print('worklog other ok')
     await click('請求書'); await pg.evaluate("window.__mockParsed={company:'田中塗装',date:'2026-11-20',subtotal:450000,tax:45000,total:495000}")
     await attach('📄 請求書を選ぶ'); await pg.select_option('#oiS',index=1); t=await pg.inner_text('#oiP'); print(t); assert '2027年1月10日（日）' in t
     await click('送る'); await pg.wait_for_timeout(200); t=await txt(); assert '送信済' in t
+    ml=await pg.evaluate('window.__mails'); assert len(ml)==3 and '請求書' in ml[2]['subject'] and '450000' not in ml[2]['body'] and '495' not in ml[2]['body'], ml; print('notify invoice ok')
     await pg.screenshot(path=OUT+'/out.png',full_page=True)
     # unlock + staff sees invoice
     await click('この端末の外注設定を解除'); await pg.fill('#ulP','1228'); await click('解除する'); await pg.wait_for_timeout(200)

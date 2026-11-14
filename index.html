@@ -869,6 +869,8 @@ function viewAdmin(){
   <label>下請・外注さんへの支払サイクル</label><div class="row" style="flex-wrap:nowrap">末締め<select id="adPm" style="width:auto">${[[0,'当月'],[1,'翌月'],[2,'翌々月'],[3,'3か月後']].map(([v,l])=>`<option value="${v}" ${n(FULLCFG.payMonths)===v?'selected':''}>${l}</option>`).join('')}</select><input id="adPd" inputmode="numeric" style="width:70px" value="${esc(FULLCFG.payDay)}">日払い</div><p class="mut">月末払いにするときは 31 と入れてください。</p>
   <label>お客様からの入金予定日の目安（入金予定日を空欄にしたとき）</label><div class="row" style="flex-wrap:nowrap">請求日の<select id="adDm" style="width:auto">${[[0,'当月末'],[1,'翌月末'],[2,'翌々月末'],[3,'3か月後の末']].map(([v,l])=>`<option value="${v}" ${n(FULLCFG.dueMonths)===v?'selected':''}>${l}</option>`).join('')}</select></div>
   <label>粗利率の色分け（目安から何pt下までを黄色にするか）</label><div class="row" style="flex-wrap:nowrap"><input id="adW" inputmode="decimal" style="width:80px" value="${esc(FULLCFG.warnPt)}">pt　<span class="mut">これより下は赤</span></div>
+  <label>通知メールの送り先（「、」区切り）</label><input id="adN" inputmode="email" value="${esc(FULLCFG.notifyEmails||'')}">
+  <p class="mut">外注・協力業者さんが日報や請求書を送ったとき、ここに入れたアドレスにメールが届きます（金額は書きません）。空にすると届きません。</p>
   <label>社内パスワード</label><input id="adP" inputmode="numeric" value="${esc(FULLCFG.staffPassword)}">
   <p class="mut">パスワードを変えると、ほかの社員の端末は次に開いたときにもう一度入り直しになります。</p>
   <button class="btn big" onclick="saveCfg()">設定を保存</button></div>
@@ -885,7 +887,7 @@ function viewAdmin(){
 async function saveCfg(){
   const c={targetMargin:n($('adT').value),fiscalEndMonth:$('adE').value,managers:$('adM').value.trim(),staffPassword:$('adP').value.trim(),
     categories:$('adCat').value.trim(),estStages:$('adStg').value.trim(),cinvTypes:$('adCt').value.trim(),expenseItems:$('adExp').value.trim(),
-    payMonths:$('adPm').value,payDay:n($('adPd').value)||10,dueMonths:$('adDm').value,warnPt:$('adW').value===''?5:n($('adW').value)};
+    payMonths:$('adPm').value,payDay:n($('adPd').value)||10,dueMonths:$('adDm').value,warnPt:$('adW').value===''?5:n($('adW').value),notifyEmails:$('adN').value.trim()};
   if(!split(c.categories).length||!split(c.estStages).length||!split(c.cinvTypes).length)return toast('種別・段階・請求の種類は1つ以上入れてください');
   if(!c.staffPassword)return toast('パスワードを入れてください');
   try{await api('saveConfig',{config:c});SES.pw=c.staffPassword;localStorage.setItem(KEY,JSON.stringify(SES));await reload();render();toast('設定を保存しました')}catch(e){toast(e.message)}

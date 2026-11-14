@@ -19,8 +19,10 @@ const DEFAULTS = {
   payMonths: '2',
   payDay: '10',
   dueMonths: '1',
-  warnPt: '5'
+  warnPt: '5',
+  notifyEmails: ''
 };
+const APP_URL = 'https://kuriharayusuke-19911024.github.io/genba-rieki/';
 const MAX_BYTES = 8 * 1024 * 1024;
 
 function onOpen() {
@@ -202,13 +204,15 @@ function route_(b) {
     }
     if (a === 'saveWorklog') {
       const r = b.rec || {};
-      return {
+      const out = {
         rec: withLock_(function () {
           if (r.id) { const old = find_('worklogs', r.id); if (!old || old.name !== nm) throw new Error('編集できません'); }
           const rec = { id: r.id, name: nm, siteId: String(r.siteId || ''), siteName: String(r.siteName || ''), date: String(r.date || ''), start: String(r.start || ''), end: String(r.end || ''), breakMin: num_(r.breakMin), work: String(r.work || ''), expenses: (r.expenses || []).map(function (x) { return { item: String(x.item || ''), amount: num_(x.amount) }; }), updatedAt: now_() };
           return save_('worklogs', rec);
         })
       };
+      if (!r.id) notify_('日報', nm, out.rec);
+      return out;
     }
     if (a === 'removeWorklog') {
       withLock_(function () {
@@ -223,7 +227,9 @@ function route_(b) {
       const r = b.rec || {};
       if (!r.file || !r.file.fileId) return { error: '請求書のファイルがありません' };
       const inv = { name: nm, siteId: String(r.siteId || ''), siteName: String(r.siteName || ''), date: String(r.date || ''), subtotal: num_(r.subtotal), total: num_(r.total), memo: String(r.memo || ''), file: { fileId: String(r.file.fileId), fileName: String(r.file.fileName || ''), mime: String(r.file.mime || '') }, parsed: r.parsed || null, status: '新着', sentAt: now_() };
-      return { rec: withLock_(function () { return save_('invoices', inv); }) };
+      const out = { rec: withLock_(function () { return save_('invoices', inv); }) };
+      notify_('請求書', nm, out.rec);
+      return out;
     }
     if (a === 'withdrawInvoice') {
       let old;
@@ -294,6 +300,34 @@ function route_(b) {
     return { config: cfg_() };
   }
   return { error: '不明な操作です' };
+}
+
+/* ---------- 通知メール ---------- */
+/* 外注さんが日報・請求書を送ったら、管理画面の「通知メールの送り先」にメールする。金額は書かない。失敗しても保存は止めない */
+function notifyText_(kind, nm, rec) {
+  const site = rec.siteName || '（現場なし）';
+  const subject = '【現場管理】' + nm + 'さんから' + kind + 'が届きました（' + site + '）';
+  const body = nm + 'さんが' + kind + 'を入れました。\n\n' +
+    '現場：' + site + '\n' +
+    (kind === '日報' ? '作業日：' : '請求日：') + (rec.date || '') + '\n\n' +
+    'アプリで見る：' + APP_URL + '\n\n' +
+    '※このメールは現場利益管理アプリから自動で送っています。返信はできません。';
+  return { subject: subject, body: body };
+}
+function notify_(kind, nm, rec) {
+  try {
+    const to = split_(cfg_().notifyEmails).filter(function (x) { return /^[^\s@]+@[^\s@]+$/.test(x); });
+    if (!to.length) return;
+    const m = notifyText_(kind, nm, rec);
+    MailApp.sendEmail({ to: to.join(','), subject: m.subject, body: m.body, name: '現場利益管理' });
+  } catch (e) { console.error('通知メール失敗: ' + e); }
+}
+/* エディタで実行する動作確認用：このスクリプトのアカウント自身にだけテストメールを送る（初回はここで送信の許可を出す） */
+function testNotify() {
+  const me = Session.getEffectiveUser().getEmail();
+  const m = notifyText_('日報', 'テスト', { siteName: 'テスト現場', date: now_().slice(0, 10) });
+  MailApp.sendEmail({ to: me, subject: '【テスト】' + m.subject, body: m.body, name: '現場利益管理' });
+  console.log('テストメールを送りました: ' + me + ' / 送り先の設定: ' + (cfg_().notifyEmails || '（未設定）'));
 }
 
 /* ---------- ファイル ---------- */
