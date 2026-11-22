@@ -84,7 +84,7 @@ let CFG={staffNames:[],managers:[],targetMargin:22,fiscalEndMonth:12,expenseItem
 let FULLCFG={};
 let D={sites:[],budget:[],estimates:[],bills:[],cinvoices:[],requests:[],reports:[],worklogs:[],invoices:[],templates:[],accesslog:[]};
 let V={tab:'home',site:null,stab:'gai',person:null,prole:'all',from:null,pmode:'staff',client:null};
-let F={period:'cur',cat:'all',done:false};
+let F={period:'cur',cat:'all',done:(()=>{try{return localStorage.getItem('extage_show_done')==='1'}catch(e){return false}})()};
 let DF={type:'all',site:'all',q:''};
 let PF={showPaid:false};
 let WM=new Date().toISOString().slice(0,7);
@@ -272,7 +272,7 @@ function viewHome(){
   <div class="mut" style="margin-top:4px">売上は完成予定日の期で集計します。実動は届いた請求書から計算しています。工事の途中は請求が出そろっていないので高めに出ます。</div>
   ${F.cat==='all'?catTable():''}</div>`;
   const list=D.sites.filter(s=>(F.cat==='all'||s.category===F.cat)&&(inP(s)||s.status!=='完了')).filter(s=>F.done||s.status!=='完了').sort((x,y)=>(y.startDate||y.created||'').localeCompare(x.startDate||x.created||''));
-  h+=`<div class="row sp" style="margin:4px 0 8px"><div class="row"><button class="btn" onclick="siteForm()">＋ 現場を追加</button><button class="btn sub" onclick="calcModal()">粗利計算</button></div><label class="ck"><input type="checkbox" ${F.done?'checked':''} onchange="F.done=this.checked;render()">完了も表示</label></div>`;
+  h+=`<div class="row sp" style="margin:4px 0 8px"><div class="row"><button class="btn" onclick="siteForm()">＋ 現場を追加</button><button class="btn sub" onclick="calcModal()">粗利計算</button></div><label class="ck"><input type="checkbox" ${F.done?'checked':''} onchange="F.done=this.checked;try{localStorage.setItem('extage_show_done',F.done?'1':'0')}catch(e){};render()">完了も表示</label></div>`;
   h+=list.length?list.map(siteCard).join(''):'<div class="card mut">現場がまだありません。「＋ 現場を追加」から登録してください。</div>';
   return h;
 }

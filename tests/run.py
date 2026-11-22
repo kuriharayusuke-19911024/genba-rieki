@@ -73,6 +73,7 @@ async def main():
     await pg.locator('button.chip',has_text='□').first.click(); await click('入金を確認しました'); await pg.wait_for_timeout(200)
     t=await txt(); assert '✓ 全入金済み' in t; print('全入金済み ok')
     await click('現場'); t=await txt(); assert '入金漏れ' not in t; assert '全入金済み' in t
+    await pg.check('text=完了も表示'); assert await pg.evaluate("localStorage.getItem('extage_show_done')")=='1'; await pg.uncheck('text=完了も表示'); print('show-done remembered ok')
     # report with add work
     await pg.locator('.card.site',has_text='福島1丁目ビル新築工事').first.click(); await click('日報')
     await click('＋ 日報を書く'); await pg.fill('#rpC','雨で1日遅れ'); await pg.check('#rpA'); await pg.fill('#rpAm','200000'); await pg.fill('#rpV','B設備'); await pg.fill('#rpVQ','150000'); await click('保存'); await pg.wait_for_timeout(200)
