@@ -337,26 +337,28 @@ function siteCinv(s,m){
    <div class="mut">請求日 ${sd(c.date)}・税抜 ${yen(c.amount)}・入金予定 ${sd(due)}${c.due?'':'（目安）'}</div>
    ${c.paid?`<div class="g" style="font-size:13px">経理確認済み：${sd(c.paid.date)} ${yen(c.paid.amount)} 入金${n(c.paid.amount)!==t?`（差額 ${yen(n(c.paid.amount)-t)}）`:''}<span class="mut">　${esc(c.paid.by)} ${esc(c.paid.at)}</span></div>`:late?`<div class="r b" style="font-size:13px">入金遅れ ${Math.round((new Date(td)-new Date(due))/864e5)}日</div>`:'<div class="mut">入金待ち</div>'}
    ${c.memo?`<div class="mut">${esc(c.memo)}</div>`:''}
-   <div class="row" style="margin-top:6px">${fbtn(c.file,'📄 請求書')}<button class="btn dan sm" onclick="confirmBox('この請求を削除しますか？',()=>removeRec('cinvoices',${q(c.id)}))">削除</button></div></div></div></div>`}).join(''):'<div class="card mut">まだ請求がありません。</div>'}`;
+   <div class="row" style="margin-top:6px">${fbtn(c.file,'📄 請求書')}<button class="btn sub sm" onclick="cinvForm(${q(s.id)},${q(c.id)})">編集</button><button class="btn dan sm" onclick="confirmBox('この請求を削除しますか？',()=>removeRec('cinvoices',${q(c.id)}))">削除</button></div></div></div></div>`}).join(''):'<div class="card mut">まだ請求がありません。</div>'}`;
 }
 let CTYPES=['着手金','中間金','完成金（残金）','一括','追加工事','その他'];
 let CI=null;
-function cinvForm(siteId){
-  CI={siteId,file:null};
-  modal(`${mhead('お客様への請求を追加')}
-  <button class="btn sub" style="margin-top:8px" onclick="cinvAttach()">📎 請求書PDFを添付（金額を読み取ります）</button><div id="ciF" class="mut"></div>
-  <label>種類</label><select id="ciT">${CTYPES.map(x=>`<option>${x}</option>`).join('')}</select>
-  <label>請求日</label><input id="ciD" type="date" value="${today()}" oninput="$('ciDueHint').textContent='空欄なら '+sd(endNextMonth(this.value))+' を目安にします'">
-  <label>金額（税抜）</label><input id="ciA" inputmode="numeric">
-  <label>金額（税込）</label><input id="ciX" inputmode="numeric" placeholder="空欄なら10%で計算">
-  <label>入金予定日</label><input id="ciDue" type="date"><div id="ciDueHint" class="mut">空欄なら ${sd(endNextMonth(today()))} を目安にします</div>
-  <label>メモ</label><input id="ciM">
+function cinvForm(siteId,id){
+  const o=id?D.cinvoices.find(x=>x.id===id):null;
+  CI=o?Object.assign({},o):{siteId,file:null};
+  const ty=o&&!CTYPES.includes(o.type)?CTYPES.concat([o.type]):CTYPES,d0=o?o.date||'':today();
+  modal(`${mhead(o?'お客様への請求を編集':'お客様への請求を追加')}
+  <button class="btn sub" style="margin-top:8px" onclick="cinvAttach()">📎 ${o&&o.file?'請求書PDFを差し替える':'請求書PDFを添付（金額を読み取ります）'}</button><div id="ciF" class="mut">${o&&o.file?'📎 '+esc(o.file.fileName):''}</div>
+  <label>種類</label><select id="ciT">${ty.map(x=>`<option ${o&&o.type===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
+  <label>請求日</label><input id="ciD" type="date" value="${esc(d0)}" oninput="$('ciDueHint').textContent='空欄なら '+sd(endNextMonth(this.value))+' を目安にします'">
+  <label>金額（税抜）</label><input id="ciA" inputmode="numeric" value="${o?esc(o.amount):''}">
+  <label>金額（税込）</label><input id="ciX" inputmode="numeric" placeholder="空欄なら10%で計算" value="${o?esc(o.taxIncl??''):''}">
+  <label>入金予定日</label><input id="ciDue" type="date" value="${o?esc(o.due||''):''}"><div id="ciDueHint" class="mut">空欄なら ${sd(endNextMonth(d0))} を目安にします</div>
+  <label>メモ</label><input id="ciM" value="${o?esc(o.memo||''):''}">
   <button class="btn big" onclick="cinvSave()">保存</button>`);
 }
 async function cinvAttach(){const f=await pickFile();if(!f)return;try{const j=await uploadFile(f,true);CI.file=j.file;CI.parsed=j.parsed||null;$('ciF').textContent='📎 '+j.file.fileName;const p=j.parsed;if(p){if(p.subtotal!=null)$('ciA').value=p.subtotal;if(p.total!=null)$('ciX').value=p.total;if(p.date)$('ciD').value=p.date}}catch(e){toast(e.message)}}
 async function cinvSave(){
   if(!$('ciA').value&&!$('ciX').value)return toast('金額を入れてください');
-  const c=Object.assign(CI,{type:$('ciT').value,date:$('ciD').value,amount:$('ciA').value!==''?n($('ciA').value):Math.round(n($('ciX').value)/1.1),taxIncl:$('ciX').value===''?'':n($('ciX').value),due:$('ciDue').value,memo:$('ciM').value.trim(),paid:null,created:new Date().toISOString()});
+  const c=Object.assign(CI,{type:$('ciT').value,date:$('ciD').value,amount:$('ciA').value!==''?n($('ciA').value):Math.round(n($('ciX').value)/1.1),taxIncl:$('ciX').value===''?'':n($('ciX').value),due:$('ciDue').value,memo:$('ciM').value.trim()});if(!c.created){c.created=new Date().toISOString();c.paid=null}
   closeModal();await saveRec('cinvoices',c);
 }
 function cinvCheck(id){
@@ -479,39 +481,54 @@ async function budSave(){
 }
 
 /* 見積・契約 */
+let ESEL=new Set();
 function siteEst(s){
   const L=D.estimates.filter(e=>e.siteId===s.id).sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.created||'').localeCompare(b.created||''));
+  [...ESEL].forEach(id=>{if(!L.some(e=>e.id===id))ESEL.delete(id)});
+  const parts=s.contractParts||[],isSum=parts.length>1&&n(s.contract)===sum(D.estimates.filter(e=>parts.includes(e.id)),e=>n(e.amount));
+  const sel=L.filter(e=>ESEL.has(e.id));
   let prev=null;
   return `<div class="row sp" style="margin-bottom:8px"><span class="mut">概算 → 見積 → 契約実施見積 → 請負契約書 の順に記録</span><button class="btn" onclick="estForm(${q(s.id)})">＋ 追加</button></div>
-  ${L.length?L.map(e=>{const d=prev!=null?n(e.amount)-prev:null;prev=n(e.amount);const cur=n(s.contract)===n(e.amount);return `<div class="card line"><div class="row sp"><b>${esc(e.stage)}</b><span class="mut">${jd(e.date)}</span></div>
+  ${L.length>1?`<div class="card"><b>合算合計</b><div class="mut">1つの現場で契約書や見積が2部・3部あるときは、合わせたいものに「合算に入れる」のチェックを付けると、合計を請負金額にできます。</div>
+   ${sel.length?`<div class="result">選んだ ${sel.length}件の合計：税抜 <b>${yen(sum(sel,e=>n(e.amount)))}</b>　税込 ${yen(sum(sel,e=>tax(e.amount,e.taxIncl)))}</div>`:''}
+   ${sel.length>1?`<button class="btn" style="margin-top:6px" onclick="setContractSum(${q(s.id)})">この合計を請負金額にする</button>`:''}</div>`:''}
+  ${L.length?L.map(e=>{const d=prev!=null?n(e.amount)-prev:null;prev=n(e.amount);const inSum=isSum&&parts.includes(e.id);const cur=!isSum&&n(s.contract)===n(e.amount);return `<div class="card line"><div class="row sp"><b>${esc(e.stage)}</b><span class="mut">${jd(e.date)}</span></div>
    <div class="row sp"><span class="big">${yen(e.amount)}</span><span class="mut">税込 ${yen(tax(e.amount,e.taxIncl))}</span></div>
    ${d!=null?`<div class="mut">前回比 ${d>=0?'+':''}${yen(d)}</div>`:''}${e.memo?`<div class="mut">${esc(e.memo)}</div>`:''}
-   <div class="row" style="margin-top:6px">${fbtn(e.file)}${cur?'<span class="tag ok">現在の請負金額</span>':`<button class="btn sub sm" onclick="setContract(${q(e.id)})">請負金額にする</button>`}<button class="btn dan sm" onclick="confirmBox('この記録を削除しますか？',()=>removeRec('estimates',${q(e.id)}))">削除</button></div></div>`}).join(''):'<div class="card mut">まだ記録がありません。</div>'}`;
+   <div class="row" style="margin-top:6px">${fbtn(e.file)}${inSum?'<span class="tag ok">請負金額（合算）に含む</span>':cur?'<span class="tag ok">現在の請負金額</span>':`<button class="btn sub sm" onclick="setContract(${q(e.id)})">請負金額にする</button>`}<button class="btn sub sm" onclick="estForm(${q(s.id)},${q(e.id)})">編集</button><button class="btn dan sm" onclick="confirmBox('この記録を削除しますか？',()=>removeRec('estimates',${q(e.id)}))">削除</button></div>
+   ${L.length>1?`<label class="ck" style="margin-top:6px"><input type="checkbox" ${ESEL.has(e.id)?'checked':''} onchange="this.checked?ESEL.add(${q(e.id)}):ESEL.delete(${q(e.id)});render()">合算に入れる</label>`:''}</div>`}).join(''):'<div class="card mut">まだ記録がありません。</div>'}`;
 }
 let EF=null;
-function estForm(siteId){
-  EF={siteId,file:null};
-  modal(`${mhead('見積・契約を追加')}
-  <button class="btn sub" style="margin-top:8px" onclick="estAttach()">📎 PDFを添付（金額を読み取ります）</button><div id="efFile" class="mut"></div>
-  <label>段階</label><select id="efS">${STAGES.map(x=>`<option>${x}</option>`).join('')}</select>
-  <label>日付</label><input id="efD" type="date" value="${today()}">
-  <label>金額（税抜）</label><input id="efA" inputmode="numeric">
-  <label>金額（税込）</label><input id="efT" inputmode="numeric" placeholder="空欄なら10%で計算">
-  <label>メモ</label><input id="efM">
+function estForm(siteId,id){
+  const o=id?D.estimates.find(x=>x.id===id):null;
+  EF=o?Object.assign({},o):{siteId,file:null};
+  const st=o&&!STAGES.includes(o.stage)?STAGES.concat([o.stage]):STAGES;
+  modal(`${mhead(o?'見積・契約を編集':'見積・契約を追加')}
+  <button class="btn sub" style="margin-top:8px" onclick="estAttach()">📎 ${o&&o.file?'PDFを差し替える':'PDFを添付（金額を読み取ります）'}</button><div id="efFile" class="mut">${o&&o.file?'📎 '+esc(o.file.fileName):''}</div>
+  <label>段階</label><select id="efS">${st.map(x=>`<option ${o&&o.stage===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
+  <label>日付</label><input id="efD" type="date" value="${esc(o?o.date||'':today())}">
+  <label>金額（税抜）</label><input id="efA" inputmode="numeric" value="${o?esc(o.amount):''}">
+  <label>金額（税込）</label><input id="efT" inputmode="numeric" placeholder="空欄なら10%で計算" value="${o?esc(o.taxIncl??''):''}">
+  <label>メモ</label><input id="efM" placeholder="例：〇〇株式会社からの契約分" value="${o?esc(o.memo||''):''}">
   <label class="ck" style="margin-top:10px"><input type="checkbox" id="efC">この金額を請負金額にする</label>
   <button class="btn big" onclick="estSave()">保存</button>`);
 }
 async function estAttach(){const f=await pickFile();if(!f)return;try{const j=await uploadFile(f,true);EF.file=j.file;EF.parsed=j.parsed||null;$('efFile').textContent='📎 '+j.file.fileName;const p=j.parsed;if(p){if(p.subtotal!=null)$('efA').value=p.subtotal;if(p.total!=null)$('efT').value=p.total;if(p.date)$('efD').value=p.date;if(p.kind==='契約書')$('efS').value='請負契約書'}}catch(e){toast(e.message)}}
 async function estSave(){
-  const e=Object.assign(EF,{stage:$('efS').value,date:$('efD').value,amount:n($('efA').value),taxIncl:$('efT').value===''?'':n($('efT').value),memo:$('efM').value.trim(),created:new Date().toISOString()});
+  const e=Object.assign(EF,{stage:$('efS').value,date:$('efD').value,amount:n($('efA').value),taxIncl:$('efT').value===''?'':n($('efT').value),memo:$('efM').value.trim()});if(!e.created)e.created=new Date().toISOString();
   const setC=$('efC').checked;closeModal();
   try{
     const items=[{coll:'estimates',rec:e}];
-    if(setC){const s=Object.assign({},D.sites.find(x=>x.id===e.siteId));s.contract=e.amount;s.contractTax=e.taxIncl;items.push({coll:'sites',rec:s})}
+    if(setC){const s=Object.assign({},D.sites.find(x=>x.id===e.siteId));s.contract=e.amount;s.contractTax=e.taxIncl;s.contractParts=[];items.push({coll:'sites',rec:s})}
     await api('saveMany',{items});await reload();render();toast('保存しました');
   }catch(err){toast(err.message)}
 }
-function setContract(id){const e=D.estimates.find(x=>x.id===id);const s=Object.assign({},D.sites.find(x=>x.id===e.siteId));s.contract=n(e.amount);s.contractTax=e.taxIncl;saveRec('sites',s,'請負金額を '+yen(e.amount)+' にしました')}
+function setContractSum(siteId){
+  const L=D.estimates.filter(e=>e.siteId===siteId&&ESEL.has(e.id));if(L.length<2)return;
+  const a=sum(L,e=>n(e.amount)),t=sum(L,e=>tax(e.amount,e.taxIncl));
+  confirmBox(`選んだ${L.length}件を合算して、請負金額を 税抜 ${yen(a)}（税込 ${yen(t)}）にしますか？`,()=>{const s=Object.assign({},D.sites.find(x=>x.id===siteId));s.contract=a;s.contractTax=t;s.contractParts=L.map(e=>e.id);ESEL.clear();saveRec('sites',s,'請負金額を合算の '+yen(a)+' にしました')},'請負金額にする');
+}
+function setContract(id){const e=D.estimates.find(x=>x.id===id);const s=Object.assign({},D.sites.find(x=>x.id===e.siteId));s.contract=n(e.amount);s.contractTax=e.taxIncl;s.contractParts=[];saveRec('sites',s,'請負金額を '+yen(e.amount)+' にしました')}
 
 /* 請求（下請さんからの請求） */
 function siteBill(s,m){
@@ -519,21 +536,22 @@ function siteBill(s,m){
   return `<div class="row sp" style="margin-bottom:8px"><b>請求合計 ${yen(m.cost)}</b><button class="btn" onclick="billForm(${q(s.id)})">＋ 請求を追加</button></div>
   ${L.length?L.map(b=>`<div class="card"><div class="row sp"><b>${esc(b.vendor||'')}</b><b>${yen(b.amount)}</b></div>
    <div class="mut">請求日 ${sd(b.date)}・税込 ${yen(tax(b.amount,b.taxIncl))}・お支払い ${jd(payDate(b.date))}${b.paid?' <span class="tag ok">支払済</span>':''}${b.invoiceId?' <span class="tag">アプリで受信</span>':''}</div>
-   <div class="row" style="margin-top:6px">${fbtn(b.file,'📄 請求書')}<button class="btn dan sm" onclick="confirmBox('この請求を削除しますか？',()=>delBill(${q(b.id)}))">削除</button></div></div>`).join(''):'<div class="card mut">まだ請求がありません。</div>'}`;
+   <div class="row" style="margin-top:6px">${fbtn(b.file,'📄 請求書')}<button class="btn sub sm" onclick="billForm(${q(s.id)},${q(b.id)})">編集</button><button class="btn dan sm" onclick="confirmBox('この請求を削除しますか？',()=>delBill(${q(b.id)}))">削除</button></div></div>`).join(''):'<div class="card mut">まだ請求がありません。</div>'}`;
 }
 let BL=null;
-function billForm(siteId){
-  BL={siteId,file:null};
-  modal(`${mhead('下請さんからの請求を追加')}
-  <button class="btn sub" style="margin-top:8px" onclick="billAttach()">📎 請求書PDFを添付（金額を読み取ります）</button><div id="blFile" class="mut"></div>
-  <label>業者名</label><input id="blV" list="vendList"><datalist id="vendList">${[...new Set(D.budget.filter(b=>b.siteId===siteId).map(b=>b.vendor).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
-  <label>請求日</label><input id="blD" type="date" value="${today()}">
-  <label>金額（税抜）</label><input id="blA" inputmode="numeric">
-  <label>金額（税込）</label><input id="blT" inputmode="numeric" placeholder="空欄なら10%で計算">
+function billForm(siteId,id){
+  const o=id?D.bills.find(x=>x.id===id):null;
+  BL=o?Object.assign({},o):{siteId,file:null};
+  modal(`${mhead(o?'下請さんからの請求を編集':'下請さんからの請求を追加')}
+  <button class="btn sub" style="margin-top:8px" onclick="billAttach()">📎 ${o&&o.file?'請求書PDFを差し替える':'請求書PDFを添付（金額を読み取ります）'}</button><div id="blFile" class="mut">${o&&o.file?'📎 '+esc(o.file.fileName):''}</div>
+  <label>業者名</label><input id="blV" list="vendList" value="${o?esc(o.vendor||''):''}"><datalist id="vendList">${[...new Set(D.budget.filter(b=>b.siteId===siteId).map(b=>b.vendor).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('')}</datalist>
+  <label>請求日</label><input id="blD" type="date" value="${esc(o?o.date||'':today())}">
+  <label>金額（税抜）</label><input id="blA" inputmode="numeric" value="${o?esc(o.amount):''}">
+  <label>金額（税込）</label><input id="blT" inputmode="numeric" placeholder="空欄なら10%で計算" value="${o?esc(o.taxIncl??''):''}">
   <button class="btn big" onclick="billSave()">保存</button>`);
 }
 async function billAttach(){const f=await pickFile();if(!f)return;try{const j=await uploadFile(f,true);BL.file=j.file;BL.parsed=j.parsed||null;$('blFile').textContent='📎 '+j.file.fileName;const p=j.parsed;if(p){if(p.company)$('blV').value=p.company;if(p.subtotal!=null)$('blA').value=p.subtotal;if(p.total!=null)$('blT').value=p.total;if(p.date)$('blD').value=p.date}}catch(e){toast(e.message)}}
-async function billSave(){const b=Object.assign(BL,{vendor:$('blV').value.trim(),date:$('blD').value,amount:n($('blA').value),taxIncl:$('blT').value===''?'':n($('blT').value),paid:false});closeModal();await saveRec('bills',b)}
+async function billSave(){const b=Object.assign(BL,{vendor:$('blV').value.trim(),date:$('blD').value,amount:n($('blA').value),taxIncl:$('blT').value===''?'':n($('blT').value)});if(!b.id)b.paid=false;closeModal();await saveRec('bills',b)}
 async function delBill(id){
   const b=D.bills.find(x=>x.id===id);
   try{
@@ -573,12 +591,14 @@ function toggleAdd(id){const r=Object.assign({},D.reports.find(x=>x.id===id));r.
 /* 現場ごとの外注 */
 function hrs(w){if(!w.start||!w.end)return 0;const[a,b]=w.start.split(':').map(Number),[c,d]=w.end.split(':').map(Number);return Math.max(0,(c*60+d)-(a*60+b)-n(w.breakMin))/60}
 const expT=w=>sum(w.expenses||[],e=>e.amount);
+const otOn=()=>(CFG.features||[]).includes('overtime');
+const otTxt=w=>n(w.overtimeH)?`・<b>残業・早出 ${n(w.overtimeH).toFixed(1)}時間</b>`:'';
 function siteOut(s){
   const L=D.worklogs.filter(w=>w.siteId===s.id).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!L.length)return'<div class="card mut">この現場の外注さんの日報はまだありません。</div>';
-  return `<div class="result" style="margin-bottom:10px">延べ ${L.length}日・${sum(L,hrs).toFixed(1)}時間・経費 ${yen(sum(L,expT))}</div>`+L.map(w=>wCard(w)).join('');
+  return `<div class="result" style="margin-bottom:10px">延べ ${L.length}日・${sum(L,hrs).toFixed(1)}時間${sum(L,w=>n(w.overtimeH))?`（残業・早出 ${sum(L,w=>n(w.overtimeH)).toFixed(1)}時間）`:''}・経費 ${yen(sum(L,expT))}</div>`+L.map(w=>wCard(w)).join('');
 }
-function wCard(w,dup){return `<div class="card"><div class="row sp"><b>${jd(w.date)}${dup>1?` <span class="tag new">同じ日に${dup}件</span>`:''}</b><span>${esc(w.name)}</span></div><div class="mut">${esc(w.siteName||siteName(w.siteId))}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`}
+function wCard(w,dup){return `<div class="card"><div class="row sp"><b>${jd(w.date)}${dup>1?` <span class="tag new">同じ日に${dup}件</span>`:''}</b><span>${esc(w.name)}</span></div><div class="mut">${esc(w.siteName||siteName(w.siteId))}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間${otTxt(w)}</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`}
 
 /* ---------- 現場の追加・編集（粗利計算つき） ---------- */
 let SF=null,CW=null;
@@ -814,12 +834,13 @@ async function postInvSave(id){
 /* ---------- 外注日報（社内向け集計） ---------- */
 function viewWork(){
   const L=D.worklogs.filter(w=>(w.date||'').slice(0,7)===WM).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const by={},cnt={};L.forEach(w=>{const p=by[w.name]=by[w.name]||{days:new Set(),h:0,e:0,c:0};p.days.add(w.date);p.h+=hrs(w);p.e+=expT(w);p.c++;const k=w.name+'|'+w.date;cnt[k]=(cnt[k]||0)+1});
+  const by={},cnt={};L.forEach(w=>{const p=by[w.name]=by[w.name]||{days:new Set(),h:0,e:0,c:0,ot:0};p.days.add(w.date);p.h+=hrs(w);p.e+=expT(w);p.c++;p.ot+=n(w.overtimeH);const k=w.name+'|'+w.date;cnt[k]=(cnt[k]||0)+1});
   const hasDup=Object.keys(by).some(k=>by[k].c>by[k].days.size);
+  const showOt=otOn()||L.some(w=>n(w.overtimeH));
   return `<div class="card"><div class="row"><span>月</span><input type="month" style="width:auto" value="${WM}" onchange="WM=this.value;render()"></div>
   ${settleSection(L)}
-  <div class="tw" style="margin-top:8px"><table><tr><th>外注さん</th><th class="num">出勤日数</th><th class="num">日報の件数</th><th class="num">作業時間</th><th class="num">経費</th></tr>
-  ${Object.keys(by).map(k=>`<tr><td>${esc(k)}</td><td class="num">${by[k].days.size}日</td><td class="num ${by[k].c>by[k].days.size?'r b':''}">${by[k].c}件</td><td class="num">${by[k].h.toFixed(1)}h</td><td class="num">${yen(by[k].e)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">この月の日報はありません</td></tr>'}</table></div>
+  <div class="tw" style="margin-top:8px"><table><tr><th>外注さん</th><th class="num">出勤日数</th><th class="num">日報の件数</th><th class="num">作業時間</th>${showOt?'<th class="num">残業・早出</th>':''}<th class="num">経費</th></tr>
+  ${Object.keys(by).map(k=>`<tr><td>${esc(k)}</td><td class="num">${by[k].days.size}日</td><td class="num ${by[k].c>by[k].days.size?'r b':''}">${by[k].c}件</td><td class="num">${by[k].h.toFixed(1)}h</td>${showOt?`<td class="num">${by[k].ot.toFixed(1)}h</td>`:''}<td class="num">${yen(by[k].e)}</td></tr>`).join('')||'<tr><td colspan="6" class="mut">この月の日報はありません</td></tr>'}</table></div>
   <p class="mut">出勤日数は日付の数、日報の件数は送られた日報の数です。${hasDup?'<span class="r">同じ日に2件以上の日報がある人は、出勤日数と件数がずれます（下の日報に「同じ日に◯件」と出ています）。</span>':''}</p>
   <p class="mut">外注さんの経費（交通費・ガソリン代など）は、今は現場の原価に入れずに別で集計しています。</p></div>${L.map(w=>wCard(w,cnt[w.name+'|'+w.date])).join('')}`;
 }
@@ -934,11 +955,12 @@ function renderOut(){
     <div id="owOt" style="display:none"><label>現場名</label><input id="owOn" placeholder="例：〇〇様邸（着工前）、事務所"><label>作業名</label><input id="owOw" placeholder="例：下見、事務所の掃除"><label>作業場所</label><input id="owOp" placeholder="例：〇〇市〇〇町、本社事務所"></div>
     <div class="row" style="flex-wrap:nowrap"><div style="flex:1"><label>開始</label><input id="owA" type="time" value="08:00" oninput="owH()"></div><div style="flex:1"><label>終了</label><input id="owB" type="time" value="17:00" oninput="owH()"></div><div style="flex:1"><label>休憩（分）</label><input id="owBr" inputmode="numeric" value="60" oninput="owH()"></div></div>
     <div id="owHr" class="mut" style="margin-top:4px"></div>
+    ${otOn()?`<label>残業・早出・追加の作業時間（時間）</label><input id="owOv" inputmode="decimal" placeholder="なければ空欄（例：1.5）"><div class="mut">上の作業時間とは別に記録されます。</div>`:''}
     <label>作業内容</label><textarea id="owW"></textarea>
     <label>追加でかかった経費</label><div class="chips" id="owHasC"><button class="chip ${!OW.has?'on':''}" onclick="owSetHas(false)">なし</button><button class="chip ${OW.has?'on':''}" onclick="owSetHas(true)">あり</button></div>
     <div id="owExp"></div>
     <button class="btn big" onclick="owSave()">日報を送る</button></div>
-    <h3>送った日報</h3>${logs.length?logs.slice(0,60).map(w=>`<div class="card"><div class="row sp"><b>${jd(w.date)}</b><button class="btn dan sm" onclick="owDel(${q(w.id)})">削除</button></div><div class="mut">${esc(w.siteName)}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`).join(''):'<div class="card mut">まだありません。</div>'}`;
+    <h3>送った日報</h3>${logs.length?logs.slice(0,60).map(w=>`<div class="card"><div class="row sp"><b>${jd(w.date)}</b><button class="btn dan sm" onclick="owDel(${q(w.id)})">削除</button></div><div class="mut">${esc(w.siteName)}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間${otTxt(w)}</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`).join(''):'<div class="card mut">まだありません。</div>'}`;
   }else{
     body=`<div class="card"><h3>請求書を送る</h3><p class="mut">PDFかスマホで撮った写真を選んでください。金額は自動で読み取ります。お支払いは${payRule()}です。</p><button class="btn big" onclick="oiPick()">📄 請求書を選ぶ</button></div>
     <h3>送った請求書</h3>${inv.length?inv.map(v=>`<div class="card"><div class="row sp"><b>${esc(v.siteName||'')}</b><span class="tag ${v.status==='新着'?'':'ok'}">${v.status==='計上済'||v.status==='確認済'?'受付済':'送信済'}</span></div>
@@ -964,7 +986,7 @@ async function owSave(){
     siteId='';siteName='その他：'+on;head=[ow&&'作業名：'+ow,op&&'作業場所：'+op].filter(Boolean).join('\n');
   }
   const body=$('owW').value.trim();
-  const rec={date:$('owD').value,siteId,siteName,work:[head,body].filter(Boolean).join('\n'),start:$('owA').value,end:$('owB').value,breakMin:n($('owBr').value),expenses:OW.has?OW.exp.filter(e=>e.item.trim()||n(e.amount)).map(e=>({item:e.item.trim(),amount:n(e.amount)})):[]};
+  const rec={date:$('owD').value,siteId,siteName,work:[head,body].filter(Boolean).join('\n'),start:$('owA').value,end:$('owB').value,breakMin:n($('owBr').value),overtimeH:$('owOv')?n($('owOv').value):0,expenses:OW.has?OW.exp.filter(e=>e.item.trim()||n(e.amount)).map(e=>({item:e.item.trim(),amount:n(e.amount)})):[]};
   if(!rec.work)return toast('作業内容を入れてください');
   try{await api('saveWorklog',{rec});OW=null;await reloadOut();renderOut();toast('日報を送りました')}catch(e){toast(e.message)}
 }

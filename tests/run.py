@@ -80,6 +80,23 @@ async def main():
     await click('確定にする'); await pg.wait_for_timeout(200)
     await click('概要'); t=await txt(); print('after add: sales 2,200,000?', '¥2,200,000' in t); assert '¥2,200,000' in t
     await pg.screenshot(path=OUT+'/site.png',full_page=True)
+    # edit: bill / client invoice keeps paid / estimates + 合算
+    await click('下請請求'); await pg.locator('button[onclick^="billForm"]',has_text='編集').first.click(); assert await pg.input_value('#blA')=='600000'; await pg.fill('#blA','650000'); await click('保存'); await pg.wait_for_timeout(200)
+    t=await txt(); assert '¥650,000' in t and await pg.evaluate("D.bills.length")==1; print('bill edit ok')
+    await click('請求・入金'); await pg.locator('button[onclick^="cinvForm"]',has_text='編集').first.click(); await pg.fill('#ciM','着手金の訂正'); await click('保存'); await pg.wait_for_timeout(200)
+    t=await txt(); assert '着手金の訂正' in t and t.count('経理確認済み')==2; print('cinv edit keeps paid ok')
+    c0=await pg.evaluate("D.sites[0].contract")
+    await click('見積・契約')
+    for amt,memo in [('3000000','A社契約分'),('1200000','B社契約分')]:
+      await click('＋ 追加'); await pg.select_option('#efS','請負契約書'); await pg.fill('#efA',amt); await pg.fill('#efM',memo); await click('保存'); await pg.wait_for_timeout(200)
+    await pg.locator('.card.line',has_text='B社契約分').locator('button[onclick^="estForm"]').click(); await pg.fill('#efA','1000000'); await click('保存'); await pg.wait_for_timeout(200)
+    t=await txt(); assert '¥1,000,000' in t and await pg.evaluate("D.estimates.filter(e=>e.memo==='B社契約分').length")==1; print('estimate edit ok')
+    for m in ['A社契約分','B社契約分']: await pg.locator('.card.line',has_text=m).locator('label.ck input').check(); await pg.wait_for_timeout(100)
+    t=await txt(); assert '選んだ 2件の合計' in t and '¥4,000,000' in t
+    await pg.screenshot(path=OUT+'/est_sum.png',full_page=True)
+    await click('この合計を請負金額にする'); await pg.click('#cfOk'); await pg.wait_for_timeout(200)
+    t=await txt(); assert t.count('請負金額（合算）に含む')==2 and await pg.evaluate("D.sites[0].contract")==4000000; print('合算 ok')
+    await pg.evaluate("c=>{const s=Object.assign({},D.sites[0],{contract:c,contractParts:[]});return saveRec('sites',s)}",c0); await pg.wait_for_timeout(200)
     await click('← 戻る')
     for tab in ['担当・お客様','書類','入金・支払','外注日報','管理']:
       await click(tab); await pg.wait_for_timeout(100)
@@ -98,9 +115,9 @@ async def main():
     t=await txt(); assert '総売上' not in t and '作業日報' in t
     leak=await pg.evaluate("(async()=>{try{await api('all');return 'LEAK'}catch(e){return e.message}})()"); print('out all ->',leak); assert leak!='LEAK'
     leak2=await pg.evaluate("(async()=>{try{await api('all',{role:'staff',pw:'0000'});return 'LEAK'}catch(e){return e.message}})()"); assert leak2!='LEAK'
-    await pg.select_option('#owS',index=1); await pg.fill('#owW','外壁塗装'); await click('あり')
+    await pg.select_option('#owS',index=1); await pg.fill('#owW','外壁塗装'); await pg.fill('#owOv','1.5'); await click('あり')
     e=pg.locator('#owExp input'); await e.nth(1).fill('1200'); await e.nth(1).dispatch_event('input')
-    await click('日報を送る'); await pg.wait_for_timeout(200); t=await txt(); assert '外壁塗装' in t and '8.0時間' in t; print('worklog ok')
+    await click('日報を送る'); await pg.wait_for_timeout(200); t=await txt(); assert '外壁塗装' in t and '8.0時間' in t and '残業・早出 1.5時間' in t; print('worklog ok')
     ml=await pg.evaluate('window.__mails'); assert len(ml)==1 and ml[0]['to']=='a@example.com,b@example.com' and '田中塗装さんから日報' in ml[0]['subject'] and '¥' not in ml[0]['body'] and '1200' not in ml[0]['body'], ml; print('notify worklog ok')
     await pg.select_option('#owS','__other'); await pg.fill('#owOn','事務所'); await pg.fill('#owOw','事務所の掃除'); await pg.fill('#owOp','本社事務所'); await pg.fill('#owW','')
     await pg.screenshot(path=OUT+'/out_other.png',full_page=True)
@@ -120,6 +137,7 @@ async def main():
     await pg.screenshot(path=OUT+'/pay.png',full_page=True)
     await click('外注日報'); t=await txt(); assert '田中塗装' in t and '¥1,200' in t
     assert '請求書と精算' in t and '未精算 1件' in t and '日報の件数' in t and '11月分' in t, 'settle section'
+    assert '残業・早出' in t and '1.5h' in t, 'overtime column'
     await pg.screenshot(path=OUT+'/work.png',full_page=True)
     await pg.locator('label.ck',has_text='精算済').locator('input').first.check(); await pg.wait_for_timeout(300)
     t=await txt(); assert 'すべて精算済' in t; paid=await pg.evaluate("D.bills.some(b=>b.paid)"); assert paid, 'settle -> bill paid'
