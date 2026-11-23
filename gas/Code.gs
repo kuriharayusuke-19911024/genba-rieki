@@ -152,7 +152,7 @@ function route_(b) {
   const pwOk = String(b.pw || '') === String(c.staffPassword);
 
   if (a === 'publicConfig') {
-    return { config: { staffNames: split_(c.staffNames), managers: split_(c.managers), targetMargin: num_(c.targetMargin), fiscalEndMonth: num_(c.fiscalEndMonth), companyName: c.companyName, expenseItems: split_(c.expenseItems), payMonths: num_(c.payMonths), payDay: num_(c.payDay) } };
+    return { config: { staffNames: split_(c.staffNames), managers: split_(c.managers), targetMargin: num_(c.targetMargin), fiscalEndMonth: num_(c.fiscalEndMonth), companyName: c.companyName, expenseItems: split_(c.expenseItems), payMonths: num_(c.payMonths), payDay: num_(c.payDay), features: ['overtime'] } };
   }
   if (a === 'checkPw') return { ok: pwOk };
 
@@ -207,7 +207,7 @@ function route_(b) {
       const out = {
         rec: withLock_(function () {
           if (r.id) { const old = find_('worklogs', r.id); if (!old || old.name !== nm) throw new Error('編集できません'); }
-          const rec = { id: r.id, name: nm, siteId: String(r.siteId || ''), siteName: String(r.siteName || ''), date: String(r.date || ''), start: String(r.start || ''), end: String(r.end || ''), breakMin: num_(r.breakMin), work: String(r.work || ''), expenses: (r.expenses || []).map(function (x) { return { item: String(x.item || ''), amount: num_(x.amount) }; }), updatedAt: now_() };
+          const rec = { id: r.id, name: nm, siteId: String(r.siteId || ''), siteName: String(r.siteName || ''), date: String(r.date || ''), start: String(r.start || ''), end: String(r.end || ''), breakMin: num_(r.breakMin), overtimeH: num_(r.overtimeH), work: String(r.work || ''), expenses: (r.expenses || []).map(function (x) { return { item: String(x.item || ''), amount: num_(x.amount) }; }), updatedAt: now_() };
           return save_('worklogs', rec);
         })
       };
