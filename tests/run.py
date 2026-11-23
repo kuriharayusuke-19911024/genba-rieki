@@ -107,7 +107,8 @@ async def main():
     await click('日報を送る'); await pg.wait_for_timeout(200); t=await txt(); assert 'その他：事務所' in t and '作業名：事務所の掃除' in t and '作業場所：本社事務所' in t; print('worklog other ok')
     await click('請求書'); await pg.evaluate("window.__mockParsed={company:'田中塗装',date:'2026-11-20',subtotal:450000,tax:45000,total:495000}")
     await attach('📄 請求書を選ぶ'); await pg.select_option('#oiS',index=1); t=await pg.inner_text('#oiP'); print(t); assert '2027年1月10日（日）' in t
-    await click('送る'); await pg.wait_for_timeout(200); t=await txt(); assert '送信済' in t
+    await pg.select_option('#oiS','__month'); await pg.fill('#oiMo','2026-11')
+    await click('送る'); await pg.wait_for_timeout(200); t=await txt(); assert '送信済' in t and '月まとめ' in t and '2026年11月分' in t
     ml=await pg.evaluate('window.__mails'); assert len(ml)==3 and '請求書' in ml[2]['subject'] and '450000' not in ml[2]['body'] and '495' not in ml[2]['body'], ml; print('notify invoice ok')
     await pg.screenshot(path=OUT+'/out.png',full_page=True)
     # unlock + staff sees invoice
@@ -118,6 +119,12 @@ async def main():
     t=await txt(); assert '2027年1月10日（日） お支払い' in t; print('post invoice ok')
     await pg.screenshot(path=OUT+'/pay.png',full_page=True)
     await click('外注日報'); t=await txt(); assert '田中塗装' in t and '¥1,200' in t
+    assert '請求書と精算' in t and '未精算 1件' in t and '日報の件数' in t and '11月分' in t, 'settle section'
+    await pg.screenshot(path=OUT+'/work.png',full_page=True)
+    await pg.locator('label.ck',has_text='精算済').locator('input').first.check(); await pg.wait_for_timeout(300)
+    t=await txt(); assert 'すべて精算済' in t; paid=await pg.evaluate("D.bills.some(b=>b.paid)"); assert paid, 'settle -> bill paid'
+    await pg.evaluate("D.worklogs.push(Object.assign({},D.worklogs[0],{id:'dup1'}));render()"); t=await txt(); assert '同じ日に2件' in t; print('settle/dup ok')
+    await pg.evaluate("reload().then(render)"); await pg.wait_for_timeout(200)
     await click('書類'); t=await txt(); print('docs count line:', [l for l in t.split('\n') if '件・税抜' in l])
     await click('現場'); await pg.screenshot(path=OUT+'/home.png',full_page=True)
     # settings: change categories & pay cycle

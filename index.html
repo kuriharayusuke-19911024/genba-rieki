@@ -576,9 +576,9 @@ const expT=w=>sum(w.expenses||[],e=>e.amount);
 function siteOut(s){
   const L=D.worklogs.filter(w=>w.siteId===s.id).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   if(!L.length)return'<div class="card mut">この現場の外注さんの日報はまだありません。</div>';
-  return `<div class="result" style="margin-bottom:10px">延べ ${L.length}日・${sum(L,hrs).toFixed(1)}時間・経費 ${yen(sum(L,expT))}</div>`+L.map(wCard).join('');
+  return `<div class="result" style="margin-bottom:10px">延べ ${L.length}日・${sum(L,hrs).toFixed(1)}時間・経費 ${yen(sum(L,expT))}</div>`+L.map(w=>wCard(w)).join('');
 }
-function wCard(w){return `<div class="card"><div class="row sp"><b>${jd(w.date)}</b><span>${esc(w.name)}</span></div><div class="mut">${esc(w.siteName||siteName(w.siteId))}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`}
+function wCard(w,dup){return `<div class="card"><div class="row sp"><b>${jd(w.date)}${dup>1?` <span class="tag new">同じ日に${dup}件</span>`:''}</b><span>${esc(w.name)}</span></div><div class="mut">${esc(w.siteName||siteName(w.siteId))}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`}
 
 /* ---------- 現場の追加・編集（粗利計算つき） ---------- */
 let SF=null,CW=null;
@@ -814,11 +814,29 @@ async function postInvSave(id){
 /* ---------- 外注日報（社内向け集計） ---------- */
 function viewWork(){
   const L=D.worklogs.filter(w=>(w.date||'').slice(0,7)===WM).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const by={};L.forEach(w=>{const p=by[w.name]=by[w.name]||{days:new Set(),h:0,e:0};p.days.add(w.date);p.h+=hrs(w);p.e+=expT(w)});
+  const by={},cnt={};L.forEach(w=>{const p=by[w.name]=by[w.name]||{days:new Set(),h:0,e:0,c:0};p.days.add(w.date);p.h+=hrs(w);p.e+=expT(w);p.c++;const k=w.name+'|'+w.date;cnt[k]=(cnt[k]||0)+1});
+  const hasDup=Object.keys(by).some(k=>by[k].c>by[k].days.size);
   return `<div class="card"><div class="row"><span>月</span><input type="month" style="width:auto" value="${WM}" onchange="WM=this.value;render()"></div>
-  <div class="tw" style="margin-top:8px"><table><tr><th>外注さん</th><th class="num">出勤日数</th><th class="num">作業時間</th><th class="num">経費</th></tr>
-  ${Object.keys(by).map(k=>`<tr><td>${esc(k)}</td><td class="num">${by[k].days.size}日</td><td class="num">${by[k].h.toFixed(1)}h</td><td class="num">${yen(by[k].e)}</td></tr>`).join('')||'<tr><td colspan="4" class="mut">この月の日報はありません</td></tr>'}</table></div>
-  <p class="mut">外注さんの経費（交通費・ガソリン代など）は、今は現場の原価に入れずに別で集計しています。</p></div>${L.map(wCard).join('')}`;
+  ${settleSection(L)}
+  <div class="tw" style="margin-top:8px"><table><tr><th>外注さん</th><th class="num">出勤日数</th><th class="num">日報の件数</th><th class="num">作業時間</th><th class="num">経費</th></tr>
+  ${Object.keys(by).map(k=>`<tr><td>${esc(k)}</td><td class="num">${by[k].days.size}日</td><td class="num ${by[k].c>by[k].days.size?'r b':''}">${by[k].c}件</td><td class="num">${by[k].h.toFixed(1)}h</td><td class="num">${yen(by[k].e)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">この月の日報はありません</td></tr>'}</table></div>
+  <p class="mut">出勤日数は日付の数、日報の件数は送られた日報の数です。${hasDup?'<span class="r">同じ日に2件以上の日報がある人は、出勤日数と件数がずれます（下の日報に「同じ日に◯件」と出ています）。</span>':''}</p>
+  <p class="mut">外注さんの経費（交通費・ガソリン代など）は、今は現場の原価に入れずに別で集計しています。</p></div>${L.map(w=>wCard(w,cnt[w.name+'|'+w.date])).join('')}`;
+}
+/* 外注さんの請求書（月ごと）と精算チェック */
+function invMonth(v){const m=/^(\d{4})年(\d{1,2})月分/.exec(v.memo||'');return m?m[1]+'-'+String(m[2]).padStart(2,'0'):(v.date||v.sentAt||'').slice(0,7)}
+function invBill(v){return v.billId?D.bills.find(b=>b.id===v.billId):null}
+function invSettled(v){const b=invBill(v);return b?!!b.paid:!!v.paid}
+function setSettled(id){const v=D.invoices.find(x=>x.id===id);const b=invBill(v);togglePaid(b?'bill':'inv',b?b.id:id)}
+function settleSection(L){
+  const inv=D.invoices.filter(v=>invMonth(v)===WM);
+  const names=[...new Set([...L.map(w=>w.name),...inv.map(v=>v.name)])];
+  if(!names.length)return'';
+  const un=inv.filter(v=>!invSettled(v));
+  return `<div class="subrow" style="margin-top:8px"><div class="row sp"><b>請求書と精算（${Number(WM.slice(5,7))}月分）</b><span class="${un.length?'r b':'mut'}">${un.length?`未精算 ${un.length}件・税込 ${yen(sum(un,v=>tax(v.subtotal,v.total)))}`:'すべて精算済'}</span></div>
+  ${names.map(nm=>{const my=inv.filter(v=>v.name===nm);return `<div style="border-top:1px solid var(--line);padding:6px 0"><b>${esc(nm)}</b>${my.length?'':' <span class="tag new">請求書まだ</span>'}
+   ${my.map(v=>{const ok=invSettled(v);return `<div class="row sp" style="margin-top:4px"><div><span class="mut">${esc(v.siteName||siteName(v.siteId)||'')}・請求日 ${sd(v.date)}</span><div>税込 ${yen(tax(v.subtotal,v.total))}${ok?' <span class="tag ok">精算済</span>':''}</div></div><div class="row">${fbtn(v.file,'📄 請求書')}<label class="ck"><input type="checkbox" ${ok?'checked':''} onchange="setSettled(${q(v.id)})">精算済</label></div></div>`}).join('')}</div>`}).join('')}
+  <p class="mut">「精算済」は「入金・支払」の支払予定の「支払済」と同じ印です。</p></div>`;
 }
 
 /* ---------- 改善リクエスト ---------- */
@@ -925,7 +943,7 @@ function renderOut(){
     body=`<div class="card"><h3>請求書を送る</h3><p class="mut">PDFかスマホで撮った写真を選んでください。金額は自動で読み取ります。お支払いは${payRule()}です。</p><button class="btn big" onclick="oiPick()">📄 請求書を選ぶ</button></div>
     <h3>送った請求書</h3>${inv.length?inv.map(v=>`<div class="card"><div class="row sp"><b>${esc(v.siteName||'')}</b><span class="tag ${v.status==='新着'?'':'ok'}">${v.status==='計上済'||v.status==='確認済'?'受付済':'送信済'}</span></div>
      <div>税抜 ${yen(v.subtotal)}　<span class="mut">税込 ${yen(tax(v.subtotal,v.total))}</span></div>
-     <div class="mut">請求日 ${sd(v.date)}${v.date?`・${Number(v.date.slice(5,7))}月末締め → ${jd(payDate(v.date))} お支払い予定`:''}</div>
+     <div class="mut">請求日 ${sd(v.date)}${v.date?`・${Number(v.date.slice(5,7))}月末締め → ${jd(payDate(v.date))} お支払い予定`:''}</div>${v.memo?`<div class="mut">${esc(v.memo)}</div>`:''}
      ${v.status==='新着'?`<button class="btn dan sm" style="margin-top:6px" onclick="oiWithdraw(${q(v.id)})">取り下げる</button>`:''}</div>`).join(''):'<div class="card mut">まだありません。</div>'}`;
   }
   $('app').innerHTML=`<header><img class="lg" src="logo.png" alt="EXTAGE"><span style="flex:1;font-size:13px;color:var(--mut)">作業日報・請求書</span><span style="font-size:13px">${esc(SES.name)}</span></header>
@@ -957,8 +975,9 @@ async function oiPick(){
   try{
     const j=await uploadFile(f,true);OI={file:j.file,parsed:j.parsed||null};const p=j.parsed||{};
     modal(`${mhead('請求書を送る')}<div class="mut">📎 ${esc(j.file.fileName)}</div>
-    <label>現場</label><select id="oiS"><option value="">選んでください</option>${OUT.sites.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select>
+    <label>現場</label><select id="oiS"><option value="">選んでください</option><option value="__month">月まとめ（その月の分をまとめた請求書）</option>${OUT.sites.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select>
     <label>請求日</label><input id="oiD" type="date" value="${esc(p.date||today())}" onchange="oiPay()">
+    <label>何月分の請求ですか</label><input id="oiMo" type="month" value="${esc((p.date||today()).slice(0,7))}">
     <label>金額（税抜）</label><input id="oiA" inputmode="numeric" value="${esc(p.subtotal??'')}">
     <label>金額（税込）</label><input id="oiT" inputmode="numeric" value="${esc(p.total??'')}">
     <label>メモ（任意）</label><input id="oiM">
@@ -971,7 +990,9 @@ function oiPay(){const d=$('oiD').value;$('oiP').textContent=d?`${Number(d.slice
 async function oiSend(){
   const siteId=$('oiS').value;if(!siteId)return toast('現場を選んでください');
   if(!$('oiA').value&&!$('oiT').value)return toast('金額を入れてください');
-  const rec={siteId,siteName:(OUT.sites.find(s=>s.id===siteId)||{}).name||'',date:$('oiD').value,subtotal:$('oiA').value!==''?n($('oiA').value):Math.round(n($('oiT').value)/1.1),total:$('oiT').value!==''?n($('oiT').value):'',memo:$('oiM').value.trim(),file:OI.file,parsed:OI.parsed};
+  const mo=$('oiMo').value,moTxt=mo?`${mo.slice(0,4)}年${Number(mo.slice(5,7))}月分`:'',mm=$('oiM').value.trim();
+  const isM=siteId==='__month';
+  const rec={siteId:isM?'':siteId,siteName:isM?'月まとめ':(OUT.sites.find(s=>s.id===siteId)||{}).name||'',date:$('oiD').value,subtotal:$('oiA').value!==''?n($('oiA').value):Math.round(n($('oiT').value)/1.1),total:$('oiT').value!==''?n($('oiT').value):'',memo:[moTxt,mm].filter(Boolean).join('・'),file:OI.file,parsed:OI.parsed};
   closeModal();
   try{await api('saveInvoice',{rec});await reloadOut();OV.tab='inv';renderOut();toast('請求書を送りました')}catch(e){toast(e.message)}
 }
