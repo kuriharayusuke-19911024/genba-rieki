@@ -613,8 +613,14 @@ function wEdit(id){
   ${otOn()||n(w.overtimeH)?`<label>残業・早出（時間）</label><input id="weOv" inputmode="decimal" value="${n(w.overtimeH)?esc(String(n(w.overtimeH))):''}">`:''}
   <label>作業内容</label><textarea id="weW">${esc(w.work||'')}</textarea>
   <label>経費</label><div id="weExp"></div>
-  <button class="btn big" onclick="wSave()">保存する</button>`);
+  <button class="btn big" onclick="wSave()">保存する</button>
+  <button class="btn dan sm" style="margin-top:14px" onclick="wDel()">この日報を削除</button>`);
   weExpRender();
+}
+function wDel(){
+  const w=D.worklogs.find(x=>x.id===WE.id);if(!w)return;
+  const what=(w.work||'').split('\n')[0].slice(0,30);
+  confirmBox(`${w.name}さん・${jd(w.date)}・${w.siteName||siteName(w.siteId)}${what?'・'+what:''} の日報を削除しますか？（元に戻せません）`,async()=>{WE=null;await removeRec('worklogs',w.id)},'削除する');
 }
 function weExpRender(){const el=$('weExp');if(!el)return;el.innerHTML=WE.exp.map((e,i)=>`<div class="row" style="flex-wrap:nowrap;margin-top:6px"><input placeholder="何に" value="${esc(e.item)}" oninput="WE.exp[${i}].item=this.value"><input placeholder="金額" inputmode="numeric" style="width:40%" value="${esc(e.amount)}" oninput="WE.exp[${i}].amount=this.value"><button class="btn dan sm" onclick="WE.exp.splice(${i},1);weExpRender()">×</button></div>`).join('')+`<button class="btn sub sm" style="margin-top:6px" onclick="WE.exp.push({item:'',amount:''});weExpRender()">＋ 経費を追加</button>`}
 async function wSave(){

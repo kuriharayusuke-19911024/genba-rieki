@@ -148,6 +148,12 @@ async def main():
     await pg.fill('#weW','社内で直した作業内容'); await click('保存する'); await pg.wait_for_timeout(300)
     t=await txt(); assert '社内で直した作業内容' in t, 'worklog edit'
     ok=await pg.evaluate("D.worklogs.some(w=>w.work==='社内で直した作業内容'&&w.name==='田中塗装')"); assert ok, 'worklog edit saved'; print('worklog edit ok')
+    c0=await pg.evaluate("D.worklogs.length")
+    await pg.locator('.card button',has_text='編集').first.click(); await pg.wait_for_timeout(100)
+    await click('この日報を削除'); t=await txt(); assert '田中塗装さん' in t and '元に戻せません' in t
+    await pg.screenshot(path=OUT+'/work_del.png',full_page=True)
+    await click('削除する'); await pg.wait_for_timeout(300)
+    c1=await pg.evaluate("D.worklogs.length"); assert c1==c0-1, ('worklog delete',c0,c1); print('worklog delete ok')
     await pg.evaluate("reload().then(render)"); await pg.wait_for_timeout(200)
     await click('書類'); t=await txt(); print('docs count line:', [l for l in t.split('\n') if '件・税抜' in l])
     await click('現場'); await pg.screenshot(path=OUT+'/home.png',full_page=True)
