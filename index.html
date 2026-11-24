@@ -598,7 +598,37 @@ function siteOut(s){
   if(!L.length)return'<div class="card mut">この現場の外注さんの日報はまだありません。</div>';
   return `<div class="result" style="margin-bottom:10px">延べ ${L.length}日・${sum(L,hrs).toFixed(1)}時間${sum(L,w=>n(w.overtimeH))?`（残業・早出 ${sum(L,w=>n(w.overtimeH)).toFixed(1)}時間）`:''}・経費 ${yen(sum(L,expT))}</div>`+L.map(w=>wCard(w)).join('');
 }
-function wCard(w,dup){return `<div class="card"><div class="row sp"><b>${jd(w.date)}${dup>1?` <span class="tag new">同じ日に${dup}件</span>`:''}</b><span>${esc(w.name)}</span></div><div class="mut">${esc(w.siteName||siteName(w.siteId))}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間${otTxt(w)}</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`}
+function wCard(w,dup){return `<div class="card"><div class="row sp"><b>${jd(w.date)}${dup>1?` <span class="tag new">同じ日に${dup}件</span>`:''}</b><span class="row">${esc(w.name)}<button class="btn sub sm" onclick="wEdit(${q(w.id)})">編集</button></span></div><div class="mut">${esc(w.siteName||siteName(w.siteId))}・${esc(w.start)}〜${esc(w.end)}（休憩${n(w.breakMin)}分）${hrs(w).toFixed(1)}時間${otTxt(w)}</div><div style="white-space:pre-wrap">${esc(w.work)}</div>${(w.expenses||[]).length?`<div class="mut">経費：${w.expenses.map(e=>esc(e.item)+' '+yen(e.amount)).join('、')}</div>`:''}</div>`}
+
+/* 外注さんの日報を社内で直す */
+let WE=null;
+function wEdit(id){
+  const w=D.worklogs.find(x=>x.id===id);if(!w)return;
+  WE={id,exp:(w.expenses||[]).map(e=>({item:e.item||'',amount:e.amount===0||e.amount?String(e.amount):''}))};
+  const inList=D.sites.some(s=>s.id===w.siteId);
+  modal(`${mhead('日報を編集')}<p class="mut">${esc(w.name)} さんの日報です。直した内容は ${esc(w.name)} さんの画面にも出ます。</p>
+  <label>日付</label><input type="date" id="weD" value="${esc(w.date||'')}">
+  <label>現場</label><select id="weS">${inList?'':`<option value="" selected>${esc(w.siteName||'（現場なし）')}</option>`}${D.sites.map(s=>`<option value="${esc(s.id)}" ${s.id===w.siteId?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+  <div class="row" style="flex-wrap:nowrap"><div style="flex:1"><label>開始</label><input type="time" id="weA" value="${esc(w.start||'')}"></div><div style="flex:1"><label>終了</label><input type="time" id="weB" value="${esc(w.end||'')}"></div><div style="flex:1"><label>休憩（分）</label><input id="weBr" inputmode="numeric" value="${esc(String(n(w.breakMin)))}"></div></div>
+  ${otOn()||n(w.overtimeH)?`<label>残業・早出（時間）</label><input id="weOv" inputmode="decimal" value="${n(w.overtimeH)?esc(String(n(w.overtimeH))):''}">`:''}
+  <label>作業内容</label><textarea id="weW">${esc(w.work||'')}</textarea>
+  <label>経費</label><div id="weExp"></div>
+  <button class="btn big" onclick="wSave()">保存する</button>`);
+  weExpRender();
+}
+function weExpRender(){const el=$('weExp');if(!el)return;el.innerHTML=WE.exp.map((e,i)=>`<div class="row" style="flex-wrap:nowrap;margin-top:6px"><input placeholder="何に" value="${esc(e.item)}" oninput="WE.exp[${i}].item=this.value"><input placeholder="金額" inputmode="numeric" style="width:40%" value="${esc(e.amount)}" oninput="WE.exp[${i}].amount=this.value"><button class="btn dan sm" onclick="WE.exp.splice(${i},1);weExpRender()">×</button></div>`).join('')+`<button class="btn sub sm" style="margin-top:6px" onclick="WE.exp.push({item:'',amount:''});weExpRender()">＋ 経費を追加</button>`}
+async function wSave(){
+  const w=D.worklogs.find(x=>x.id===WE.id);if(!w)return;
+  const rec=Object.assign({},w);
+  const sid=$('weS').value;
+  if(sid){rec.siteId=sid;rec.siteName=siteName(sid)}
+  rec.date=$('weD').value;rec.start=$('weA').value;rec.end=$('weB').value;rec.breakMin=n($('weBr').value);
+  if($('weOv'))rec.overtimeH=n($('weOv').value);
+  rec.work=$('weW').value.trim();if(!rec.work)return toast('作業内容を入れてください');
+  rec.expenses=WE.exp.filter(e=>e.item.trim()||n(e.amount)).map(e=>({item:e.item.trim(),amount:n(e.amount)}));
+  rec.updatedAt=nowStr();
+  closeModal();WE=null;await saveRec('worklogs',rec,'日報を直しました');
+}
 
 /* ---------- 現場の追加・編集（粗利計算つき） ---------- */
 let SF=null,CW=null;

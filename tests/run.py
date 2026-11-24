@@ -142,6 +142,12 @@ async def main():
     await pg.locator('label.ck',has_text='精算済').locator('input').first.check(); await pg.wait_for_timeout(300)
     t=await txt(); assert 'すべて精算済' in t; paid=await pg.evaluate("D.bills.some(b=>b.paid)"); assert paid, 'settle -> bill paid'
     await pg.evaluate("D.worklogs.push(Object.assign({},D.worklogs[0],{id:'dup1'}));render()"); t=await txt(); assert '同じ日に2件' in t; print('settle/dup ok')
+    await pg.locator('.card button',has_text='編集').first.click(); await pg.wait_for_timeout(100)
+    t=await txt(); assert '日報を編集' in t
+    await pg.screenshot(path=OUT+'/work_edit.png',full_page=True)
+    await pg.fill('#weW','社内で直した作業内容'); await click('保存する'); await pg.wait_for_timeout(300)
+    t=await txt(); assert '社内で直した作業内容' in t, 'worklog edit'
+    ok=await pg.evaluate("D.worklogs.some(w=>w.work==='社内で直した作業内容'&&w.name==='田中塗装')"); assert ok, 'worklog edit saved'; print('worklog edit ok')
     await pg.evaluate("reload().then(render)"); await pg.wait_for_timeout(200)
     await click('書類'); t=await txt(); print('docs count line:', [l for l in t.split('\n') if '件・税抜' in l])
     await click('現場'); await pg.screenshot(path=OUT+'/home.png',full_page=True)
